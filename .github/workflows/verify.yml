@@ -21,7 +21,7 @@ env:
   JWT_ADMIN_SECRET: ci-admin-jwt-secret-is-long-enough-123456
   JWT_USER_SECRET: ci-user-jwt-secret-is-long-enough-1234567
   ADMIN_PASSWORD: ci-admin-password-not-for-production
-  SHUNSHOU_DEMO_SEED: "false"
+  SHUNSHOU_DEMO_SEED: "true"
 jobs:
   backend-compile-and-privacy-test:
     runs-on: ubuntu-latest
@@ -83,6 +83,14 @@ jobs:
           curl -fsSL http://localhost/api/ -o /tmp/admin-smoke.html
           grep -q '<html' /tmp/admin-smoke.html
           curl -fsS http://localhost/api/actuator/health
+      - name: Verify admin and demo student sign in
+        run: |
+          set -euo pipefail
+          admin_json=$(curl -fsS --retry 5 --retry-delay 2 -X POST http://localhost:8080/api/admin/login -H 'Content-Type: application/json' --data "{\"username\":\"admin\",\"password\":\"$ADMIN_PASSWORD\"}")
+          printf '%s' "$admin_json" | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data.get("code")==1 and data.get("data",{}).get("token"), "admin login failed"'
+          student_json=$(curl -fsS --retry 5 --retry-delay 2 -X POST http://localhost:8080/api/user/login -H 'Content-Type: application/json' --data '{"loginType":1,"username":"testuser","password":"123456"}')
+          printf '%s' "$student_json" | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data.get("code")==1, "demo student login failed"'
+          echo "Admin and student login smoke checks passed"
       - name: Dump logs on failure
         if: failure()
         run: docker compose -f docker/docker-compose.yml logs --tail=150
