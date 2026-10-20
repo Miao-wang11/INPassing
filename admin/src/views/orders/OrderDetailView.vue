@@ -112,7 +112,7 @@
           <span class="card-title-text">任务图片</span>
         </template>
         <div class="image-grid">
-          <el-image v-for="(url, i) in detail.imageUrls" :key="i" :src="url" :preview-src-list="detail.imageUrls" :initial-index="i" fit="cover" class="task-image anim-img" :style="{ animationDelay: (0.3 + i * 0.07) + 's' }">
+          <el-image v-for="(url, i) in detail.imageUrls" :key="i" :src="url" :preview-src-list="detail.imageUrls" :initial-index="i" fit="cover" class="task-image anim-img" :style="{ animationDelay: (0.3 + Number(i) * 0.07) + 's' }">
             <template #error>
               <div class="image-error"><el-icon><Picture /></el-icon><span>加载失败</span></div>
             </template>
@@ -126,7 +126,7 @@
           <span class="card-title-text">取货凭证</span>
         </template>
         <div class="image-grid">
-          <el-image v-for="(url, i) in detail.pickupProofImgs" :key="i" :src="url" :preview-src-list="detail.pickupProofImgs" :initial-index="i" fit="cover" class="task-image anim-img" :style="{ animationDelay: (0.3 + i * 0.07) + 's' }">
+          <el-image v-for="(url, i) in detail.pickupProofImgs" :key="i" :src="url" :preview-src-list="detail.pickupProofImgs" :initial-index="i" fit="cover" class="task-image anim-img" :style="{ animationDelay: (0.3 + Number(i) * 0.07) + 's' }">
             <template #error>
               <div class="image-error"><el-icon><Picture /></el-icon><span>加载失败</span></div>
             </template>
@@ -140,7 +140,7 @@
           <span class="card-title-text">送达凭证</span>
         </template>
         <div class="image-grid">
-          <el-image v-for="(url, i) in detail.deliverProofImgs" :key="i" :src="url" :preview-src-list="detail.deliverProofImgs" :initial-index="i" fit="cover" class="task-image anim-img" :style="{ animationDelay: (0.3 + i * 0.07) + 's' }">
+          <el-image v-for="(url, i) in detail.deliverProofImgs" :key="i" :src="url" :preview-src-list="detail.deliverProofImgs" :initial-index="i" fit="cover" class="task-image anim-img" :style="{ animationDelay: (0.3 + Number(i) * 0.07) + 's' }">
             <template #error>
               <div class="image-error"><el-icon><Picture /></el-icon><span>加载失败</span></div>
             </template>
