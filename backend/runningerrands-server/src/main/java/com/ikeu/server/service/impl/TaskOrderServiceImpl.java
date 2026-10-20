@@ -256,9 +256,13 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
 
             // 5. 状态校验并更新任务为"已接单"
             TaskStateMachine.validate(latestTask.getStatus(), StatusConstant.TASK_ACCEPTED, "Task");
-            latestTask.setStatus(StatusConstant.TASK_ACCEPTED);
-            latestTask.setUpdatedAt(LocalDateTime.now());
-            taskMapper.updateById(latestTask);
+            // InnoDB compare-and-set: a Redis lock is an optimization, not
+            // proof of exclusive ownership after a transaction boundary.
+            int updated = taskMapper.claimTaskIfWaiting(
+                    taskId, StatusConstant.TASK_WAITING, StatusConstant.TASK_ACCEPTED);
+            if (updated != 1) {
+                throw new BusinessException(MessageConstant.TASK_ALREADY_ACCEPTED);
+            }
 
             // 6. 原子更新跑腿员当前接单数 +1
             runnerProfileMapper.incrementCurrentOrders(runnerId);

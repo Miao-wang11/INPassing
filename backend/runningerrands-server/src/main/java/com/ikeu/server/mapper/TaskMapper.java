@@ -21,6 +21,19 @@ import java.util.Map;
 public interface TaskMapper extends BaseMapper<Task> {
 
     /**
+     * The database is the final authority for a single winner.
+     * Return 1 ONLY when this task is still waiting and not expired.
+     * This statement is atomic under InnoDB, even if the Redis lease
+     * expires before the surrounding transaction commits.
+     */
+    @org.apache.ibatis.annotations.Update(
+            "UPDATE task SET status = #{target}, updated_at = NOW() " +
+            "WHERE id = #{taskId} AND status = #{expected} AND expire_time > NOW()")
+    int claimTaskIfWaiting(@Param("taskId") Long taskId,
+                           @Param("expected") Integer expected,
+                           @Param("target") Integer target);
+
+    /**
      * 使用 Haversine 公式计算距离，查询指定半径内的待接单任务，按距离升序排列。
      *
      * @param lng 当前经度
