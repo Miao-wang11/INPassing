@@ -10,6 +10,10 @@ import java.io.Serializable;
 @Schema(description = "实名认证请求DTO")
 public class RealNameAuthDTO implements Serializable {
 
+    @jakarta.validation.constraints.NotNull(message = "请选择学校校区")
+    @Schema(description = "校区ID，仅用于认证申请，最终归属以管理员审核为准")
+    private Long campusId;
+
     @NotBlank(message = "真实姓名不能为空")
     @Schema(description = "真实姓名")
     private String realName;

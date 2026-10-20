@@ -17,6 +17,7 @@ import com.ikeu.model.vo.UserInfoVO;
 import com.ikeu.server.mapper.RunnerProfileMapper;
 import com.ikeu.server.mapper.UserMapper;
 import com.ikeu.server.service.AdminUserService;
+import com.ikeu.server.service.CampusCatalogService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -39,6 +40,7 @@ import java.util.stream.Collectors;
 public class AdminUserServiceImpl implements AdminUserService {
 
     private final UserMapper userMapper;
+    private final CampusCatalogService campusCatalogService;
     private final RunnerProfileMapper runnerProfileMapper;
 
     /**
@@ -97,6 +99,16 @@ public class AdminUserServiceImpl implements AdminUserService {
         if (user == null) throw new NotFoundException(MessageConstant.USER_NOT_EXIST);
         if (!Objects.equals(user.getIsCertify(), StatusConstant.CERTIFY_AUDITING)) {
             throw new BusinessException(MessageConstant.USER_NOT_IN_AUDITING_STATUS);
+        }
+        if (!Objects.equals(isCertify, StatusConstant.CERTIFY_APPROVED)
+                && !Objects.equals(isCertify, StatusConstant.CERTIFY_REJECTED)) {
+            throw new BusinessException("认证审核只允许通过或驳回");
+        }
+        if (Objects.equals(isCertify, StatusConstant.CERTIFY_APPROVED)) {
+            campusCatalogService.requireActive(user.getPendingCampusId());
+            user.setCampusId(user.getPendingCampusId());
+        } else {
+            user.setCampusId(null);
         }
         user.setIsCertify(isCertify);
         user.setCertifyRemark(remark != null ? remark : "");

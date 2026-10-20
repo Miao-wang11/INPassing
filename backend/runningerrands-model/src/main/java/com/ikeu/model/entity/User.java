@@ -90,6 +90,14 @@ public class User implements Serializable {
     @TableField("balance")
     private BigDecimal balance;
 
+    /** Approved campus ID; only set by an admin on successful verification. */
+    @TableField("campus_id")
+    private Long campusId;
+
+    /** Pending requested campus; must not be trusted before admin approval. */
+    @TableField("pending_campus_id")
+    private Long pendingCampusId;
+
     /** 学院名 */
     @TableField("campus")
     private String campus;

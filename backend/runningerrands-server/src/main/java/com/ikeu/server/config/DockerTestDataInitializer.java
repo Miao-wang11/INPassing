@@ -13,6 +13,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -33,18 +34,24 @@ public class DockerTestDataInitializer implements ApplicationRunner {
     private static final String TEST_PASSWORD = "123456";
 
     private final UserMapper userMapper;
+    private final JdbcTemplate jdbcTemplate;
     private final RunnerProfileMapper runnerProfileMapper;
     private final PasswordEncoder passwordEncoder;
 
     @Override
     public void run(ApplicationArguments args) {
-        initTestUser("testuser", "13800000001", "测试用户", true, true);
-        initTestUser("testuser2", "13800000002", "测试用户2", true, false);
+        // Explicitly demo-only. IDs are reserved for disposable demo data.
+        jdbcTemplate.update("INSERT IGNORE INTO school (id,name,status) VALUES (10001,'顺手演示大学',1)");
+        jdbcTemplate.update("INSERT IGNORE INTO school_campus (id,school_id,name,status) VALUES (10001,10001,'东校区',1)");
+        jdbcTemplate.update("INSERT IGNORE INTO school_campus (id,school_id,name,status) VALUES (10002,10001,'西校区',1)");
+        initTestUser("testuser", "13800000001", "测试用户", true, true, 10001L);
+        initTestUser("testuser2", "13800000002", "测试用户2", true, false, 10001L);
+        initTestUser("testuser3", "13800000003", "跨校区测试用户", true, false, 10002L);
         log.info("Docker 测试数据初始化完成");
     }
 
     private void initTestUser(String username, String phone, String nickname,
-                               boolean setPayPassword, boolean applyRunner) {
+                               boolean setPayPassword, boolean applyRunner, Long campusId) {
         boolean exists = userMapper.exists(new LambdaQueryWrapper<User>()
                 .eq(User::getUsername, username));
         if (exists) {
@@ -61,6 +68,7 @@ public class DockerTestDataInitializer implements ApplicationRunner {
                 .balance(BigDecimal.valueOf(100.00))
                 .status(StatusConstant.ENABLE)
                 .isCertify(StatusConstant.CERTIFY_APPROVED)
+                .campusId(campusId)
                 .sex("男")
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
