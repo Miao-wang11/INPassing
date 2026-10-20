@@ -81,10 +81,10 @@ def main():
     assert sql(f"SELECT COUNT(*) FROM payment_idempotent WHERE idempotent_key='PAY:task:{task_id}'")=="1"
     print("PASS: service offer creates one prepaid task assigned to provider, not public runner")
 
-    concurrent=[]
+    responses=[]
     with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
-        concurrent=list(pool.map(lambda _:api("POST",f"/service-offers/{offer_id}/book",details,buyer),range(6)))
-    assert all(x.get("code")==1 and int(x["data"]["orderId"])==order_id for x in concurrent),concurrent
+        responses=list(pool.map(lambda _:api("POST",f"/service-offers/{offer_id}/book",details,buyer),range(6)))
+    assert all(x.get("code")==1 and int(x["data"]["orderId"])==order_id for x in responses),responses
     assert cash(buyer_id)==Decimal("90.75")
     assert sql(f"SELECT COUNT(*) FROM service_booking WHERE task_id={task_id}")=="1"
     assert api("POST",f"/service-offers/{offer_id}/book",
