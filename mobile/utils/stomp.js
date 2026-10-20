@@ -19,6 +19,7 @@ export class StompClient {
     this._subId = 0
     this._subscriptions = {}  // id → { destination, callback }
     this._pendingFrames = []   // frames queued before CONNECTED
+    this._receiveBuffer = ''    // preserve incomplete frames across socket events
     this._heartbeatTimer = null
     this._connectResolve = null
     this._connectReject = null
@@ -36,6 +37,7 @@ export class StompClient {
    */
   connect(url, token, timeout = 10000) {
     return new Promise((resolve, reject) => {
+      this._receiveBuffer = ''
       this._connectResolve = resolve
       this._connectReject = reject
 
@@ -166,6 +168,7 @@ export class StompClient {
     this._connected = false
     this._subscriptions = {}
     this._pendingFrames = []
+    this._receiveBuffer = ''
   }
 
   // ---------- private ----------
@@ -197,7 +200,17 @@ export class StompClient {
 
   _onFrame(raw, onConnected) {
     // STOMP frames are separated by null byte
-    const frames = raw.split('\x00').filter(Boolean)
+    // STOMP frames may be split across multiple WebSocket data callbacks.
+    // Never parse the final fragment before the NUL frame terminator arrives.
+    this._receiveBuffer += raw
+    if (this._receiveBuffer.length > 128 * 1024) {
+      this._receiveBuffer = ''
+      console.warn('[StompClient] incoming frame exceeds buffer limit')
+      return
+    }
+    const segments = this._receiveBuffer.split('\x00')
+    this._receiveBuffer = segments.pop() || ''
+    const frames = segments.filter(part => part.trim().length > 0)
     for (const rawFrame of frames) {
       const lines = rawFrame.trim().split('\n')
       const command = lines[0]?.trim()
