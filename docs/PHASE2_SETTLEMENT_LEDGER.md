@@ -39,4 +39,6 @@
 - GitHub Actions 执行 Maven、npm、Docker、登录和既有双向身份/抢单回归。
 - 新增 `e2e/fee_settlement_smoke.py`：用真实 Docker MySQL + REST 进行发布 → 模拟预付 → 接单 → 上传履约 URL → 双方确认 → 余额和流水对账、重复确认、取消未接单任务退款、无效金额拒绝。
 
-只有 CI 真正运行成功后，以上测试才算通过；若失败则按日志修复，不能提前声明完成。
+**已完成真实核验**：[GitHub Actions run 39392513693](https://github.com/Miao-wang11/INPassing/actions/runs/39392513693) 全部通过，包含 Maven 单元测试、Vue 编译、Docker MySQL/Redis/Spring Boot/Nginx、学生登录与双向抢单回归，以及模拟支付、服务费/商品预算分账、重复确认拒绝、取消退款、非法金额拒绝。
+
+另通过真实 E2E 检查发现上游 `CreditScoreAspect` 在事务提交后注册事务同步导致 `IllegalStateException: Transaction synchronization is not active`。现已修复：同步仍有效时注册 `afterCommit`，已无同步上下文时进行独立事务信用处理；信用异常只记录错误，不将已提交送达错误显示给客户端。对应回归单测见 `CreditScoreAspectTest`。未完成的持久化信用异常重试机制已标记 TODO，仍属后续任务。
