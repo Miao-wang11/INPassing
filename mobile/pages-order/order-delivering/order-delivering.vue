@@ -396,7 +396,7 @@ async function loadData() {
 
     if (data.orderStatus === 4 || data.orderStatus === 5) {
       setTimeout(() => {
-        uni.redirectTo({ url: `/pages/order-completed/order-completed?orderId=${data.orderId}` })
+        uni.redirectTo({ url: `/pages-order/order-completed/order-completed?orderId=${data.orderId}` })
       }, 500)
     }
   } catch (e) { /* handled */ }
@@ -453,7 +453,7 @@ async function onConfirm() {
     await orderApi.confirmOrder(orderId.value)
     uni.showToast({ title: '已完成，去评价吧', icon: 'success' })
     setTimeout(() => {
-      uni.redirectTo({ url: `/pages/order-completed/order-completed?orderId=${orderId.value}` })
+      uni.redirectTo({ url: `/pages-order/order-completed/order-completed?orderId=${orderId.value}` })
     }, 1000)
   } catch (e) { /* handled */ } finally {
     actionUnlock()
@@ -478,7 +478,7 @@ function onCancel() {
 function onChat() {
   const userId = otherParty.value.id || ''
   const nickname = encodeURIComponent(otherParty.value.name || '')
-  uni.navigateTo({ url: `/pages/chat-detail/chat-detail?userId=${userId}&nickname=${nickname}` })
+  uni.navigateTo({ url: `/pages-social/chat-detail/chat-detail?userId=${userId}&nickname=${nickname}` })
 }
 
 function onCall() {
@@ -492,7 +492,7 @@ function onCall() {
 function goRunnerProfile() {
   if (!isPublisher.value) return
   const rid = otherParty.value.id
-  if (rid) uni.navigateTo({ url: `/pages/runner-profile/runner-profile?runnerId=${rid}` })
+  if (rid) uni.navigateTo({ url: `/pages-social/runner-profile/runner-profile?runnerId=${rid}` })
 }
 
 function previewImage(url) {

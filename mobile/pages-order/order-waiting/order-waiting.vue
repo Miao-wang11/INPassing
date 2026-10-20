@@ -481,7 +481,7 @@ async function loadData() {
         }
         // 已完成 → 跳转完成页
         if (orderData.orderStatus === 4 || orderData.orderStatus === 5) {
-          uni.redirectTo({ url: `/pages/order-completed/order-completed?orderId=${orderData.orderId}` })
+          uni.redirectTo({ url: `/pages-order/order-completed/order-completed?orderId=${orderData.orderId}` })
           return
         }
       } catch (e) { /* order not found or not accessible */ }
@@ -489,7 +489,7 @@ async function loadData() {
 
     // 已完成/已取消 → 跳转完成页
     if (data.status === 5 || data.status === 6) {
-      uni.redirectTo({ url: `/pages/order-completed/order-completed?taskId=${taskId.value}` })
+      uni.redirectTo({ url: `/pages-order/order-completed/order-completed?taskId=${taskId.value}` })
       return
     }
 
@@ -503,7 +503,7 @@ async function loadData() {
 
 function goDelivering() {
   const role = isRunner.value ? 'runner' : 'publisher'
-  uni.redirectTo({ url: `/pages/order-delivering/order-delivering?taskId=${taskId.value}&role=${role}` })
+  uni.redirectTo({ url: `/pages-order/order-delivering/order-delivering?taskId=${taskId.value}&role=${role}` })
 }
 
 function onCancel() {
@@ -532,7 +532,7 @@ onUnmounted(() => {
 function onChatRunner() {
   const userId = runnerInfo.value.id || ''
   const nickname = encodeURIComponent(runnerInfo.value.name || '')
-  uni.navigateTo({ url: `/pages/chat-detail/chat-detail?userId=${userId}&nickname=${nickname}` })
+  uni.navigateTo({ url: `/pages-social/chat-detail/chat-detail?userId=${userId}&nickname=${nickname}` })
 }
 
 function onCallRunner() {
@@ -563,7 +563,7 @@ function previewImage(url) {
   }
 }
 
-function goRunnerProfile(runnerId) { uni.navigateTo({ url: `/pages/runner-profile/runner-profile?runnerId=${runnerId}` }) }
+function goRunnerProfile(runnerId) { uni.navigateTo({ url: `/pages-social/runner-profile/runner-profile?runnerId=${runnerId}` }) }
 function onBack() { uni.navigateBack() }
 </script>
 
