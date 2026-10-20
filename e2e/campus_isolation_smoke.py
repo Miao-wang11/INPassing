@@ -36,10 +36,10 @@ def main():
     admin=ok(api("POST","/admin/login",
           {"username":"admin","password":"ci-admin-password-not-for-production"}),
           "admin login")["token"]
-    ok(admin_call("POST","/admin/campuses/schools",admin,{"name":"CI测试高校"}),
+    ok(admin_call("POST","/admin/campuses/schools",admin,{"name":"CI-University-For-E2E"}),
        "create school")
-    school_id=int(sql("SELECT id FROM school WHERE name='CI测试高校'"))
-    ok(admin_call("POST","/admin/campuses",admin,{"schoolId":school_id,"name":"CI测试校区"}),
+    school_id=int(sql("SELECT id FROM school WHERE name='CI-University-For-E2E'"))
+    ok(admin_call("POST","/admin/campuses",admin,{"schoolId":school_id,"name":"CI-West-Campus-E2E"}),
        "create campus")
     assert len(ok(api("GET","/campus/list"),"new campus listed")) >= 3
     print("PASS: admin can create reference school/campus; public catalog sees them")
