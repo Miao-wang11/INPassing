@@ -120,7 +120,15 @@ async function main() {
     console.log('DIAG sockets connected', a.inbox.length, b.inbox.length, c.inbox.length);
     console.log('DIAG connected inbox', JSON.stringify(a.inbox), JSON.stringify(b.inbox));
     console.log('DIAG delivery database precheck', sql("SELECT COUNT(*) FROM chat_message WHERE content='CI_STOMP_PRIVATE_CHAT_20261020'"));
-    const received = await b.wait(p => p.command === 'MESSAGE' && p.body.includes(content));
+    let received;
+    try {
+      received = await b.wait(p => p.command === 'MESSAGE' && p.body.includes(content));
+    } catch (error) {
+      console.error('DIAG sender frames:', JSON.stringify(a.inbox).slice(0,3000));
+      console.error('DIAG recipient frames:', JSON.stringify(b.inbox).slice(0,3000));
+      console.error('DIAG database chat rows:', sql("SELECT COUNT(*) FROM chat_message WHERE content='CI_STOMP_PRIVATE_CHAT_20261020'"));
+      throw error;
+    }
     const message = JSON.parse(received.body);
     assert.equal(Number(message.senderId), alice.id);
     assert.equal(Number(message.receiverId), bob.id);
