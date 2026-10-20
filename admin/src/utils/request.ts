@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios'
+import type { AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '@/router'
 import { useAuthStore } from '@/stores/auth'
@@ -64,7 +64,8 @@ service.interceptors.response.use(
   (response: AxiosResponse) => {
     const body = response.data
     if (body.code === 1) {
-      return formatDates(body.data)
+      response.data = formatDates(body.data)
+      return response
     }
     ElMessage.error(body.msg || '请求失败')
     return Promise.reject(new Error(body.msg))
@@ -126,4 +127,8 @@ service.interceptors.response.use(
   }
 )
 
-export default service
+// Keep Axios interceptors correctly typed as AxiosResponse.
+// At the API boundary, consistently unwrap the typed response data.
+export default function request<T = any>(config: AxiosRequestConfig): Promise<T> {
+  return service.request<T>(config).then((response) => response.data as T)
+}
