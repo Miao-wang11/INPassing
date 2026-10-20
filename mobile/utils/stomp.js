@@ -23,6 +23,8 @@ export class StompClient {
     this._heartbeatTimer = null
     this._connectResolve = null
     this._connectReject = null
+    this._manualDisconnect = false
+    this.onDisconnect = null // unexpected socket close after CONNECTED
   }
 
   get connected() {
@@ -38,6 +40,7 @@ export class StompClient {
   connect(url, token, timeout = 10000) {
     return new Promise((resolve, reject) => {
       this._receiveBuffer = ''
+      this._manualDisconnect = false
       this._connectResolve = resolve
       this._connectReject = reject
 
@@ -51,6 +54,9 @@ export class StompClient {
         if (err) reject(err)
         else resolve(result)
       }
+
+      // Route STOMP ERROR rejections through finish so the timeout is cleared.
+      this._connectReject = err => finish(err)
 
       const timer = setTimeout(() => {
         finish(new Error('STOMP 连接超时'))
@@ -86,10 +92,12 @@ export class StompClient {
       })
 
       this._socket.onClose(() => {
+        const wasConnected = this._connected
         this._connected = false
         this._stopHeartbeat()
-        if (!settled) {
-          finish(new Error('WebSocket 连接已关闭'))
+        if (!settled) finish(new Error('WebSocket 连接已关闭'))
+        if (wasConnected && !this._manualDisconnect && typeof this.onDisconnect === 'function') {
+          this.onDisconnect()
         }
       })
     })
@@ -146,6 +154,7 @@ export class StompClient {
 
   /** 断开连接 */
   disconnect() {
+    this._manualDisconnect = true
     if (this._socket) {
       try {
         const frame = this._buildFrame('DISCONNECT', {
