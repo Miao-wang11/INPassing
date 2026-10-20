@@ -46,7 +46,7 @@ def main():
     assert worker_id and sql(f"SELECT COUNT(*) FROM runner_profile WHERE user_id={int(worker_id)}") == "0", (
         "Expected demo student with NO runner_profile before first accept")
 
-    def publish():
+    def publish(token=publisher):
         result = api("POST", "/task/publish", {
             "type":"校内代办", "subType":"图书馆还书",
             "publicDesc":"CI 校园学生双身份端到端验证",
@@ -54,7 +54,7 @@ def main():
             "pickupAddress":"教学楼A座","contactName":"CI同学",
             "contactPhone":"13800000001","expireMinutes":30,
             "payPassword":"123456"
-        }, publisher)
+        }, token)
         return ok(result,"publish as student")["taskId"]
 
     task_id = publish()
@@ -76,6 +76,15 @@ def main():
     assert repeat.get("code") != 1, "Repeated accept must be rejected"
     assert sql(f"SELECT COUNT(*) FROM task_order WHERE task_id={int(task_id)} AND status<>5") == "1"
 
+    # Reverse roles: user2 was the runner and now publishes. User1 published
+    # earlier, becomes a runner with the SAME login account.
+    reverse_task = publish(token=worker)
+    ok(api("POST", "/runner/online", token=publisher), "existing runner goes online")
+    reversed_order = ok(api("POST", f"/order/accept/{reverse_task}", token=publisher),
+                        "original publisher becomes runner")
+    assert reversed_order.get("orderId"), "Reverse-role acceptance returned no order"
+    assert sql(f"SELECT COUNT(*) FROM task_order WHERE task_id={int(reverse_task)} AND status<>5") == "1"
+
     # Existing restrictions must NEVER be silently cleared by auto-bootstrap.
     sql(f"UPDATE runner_profile SET is_banned=1, credit_score=45 WHERE user_id={int(worker_id)}")
     second = publish()
@@ -86,6 +95,7 @@ def main():
     print("PASS: certified student publishes; other certified student accepts")
     print("PASS: fresh profile created atomically without separate runner application")
     print("PASS: self-accept, duplicate accept and banned student rejected")
+    print("PASS: both students swapped publisher and runner roles with one login each")
     print("PASS: existing credit and ban state preserved")
 
 if __name__ == "__main__":
