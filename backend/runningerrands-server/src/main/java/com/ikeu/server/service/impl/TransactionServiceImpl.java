@@ -151,10 +151,15 @@ public class TransactionServiceImpl extends ServiceImpl<TransactionRecordMapper,
     public Map<String, BigDecimal> getSummary(Long userId) {
         Map<String, BigDecimal> result = transactionRecordMapper.sumSummaryByUserId(userId);
         if (result == null) {
-            return Map.of("total_income", BigDecimal.ZERO, "total_expense", BigDecimal.ZERO);
+            return Map.of("total_income", BigDecimal.ZERO, "total_expense", BigDecimal.ZERO,
+                    "shopping_reimbursement", BigDecimal.ZERO, "total_recharge", BigDecimal.ZERO,
+                    "total_refund", BigDecimal.ZERO);
         }
         result.putIfAbsent("total_income", BigDecimal.ZERO);
         result.putIfAbsent("total_expense", BigDecimal.ZERO);
+        result.putIfAbsent("shopping_reimbursement", BigDecimal.ZERO);
+        result.putIfAbsent("total_recharge", BigDecimal.ZERO);
+        result.putIfAbsent("total_refund", BigDecimal.ZERO);
         return result;
     }
 }

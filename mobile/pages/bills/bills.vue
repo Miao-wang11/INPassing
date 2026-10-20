@@ -74,7 +74,8 @@ const filters = [
   { key: 2, label: '跑腿收入' },
   { key: 3, label: '充值' },
   { key: 4, label: '提现' },
-  { key: 5, label: '退款' }
+  { key: 5, label: '退款' },
+  { key: 6, label: '采购报销' }
 ]
 
 const categoryMap = {
@@ -82,7 +83,8 @@ const categoryMap = {
   2: { category: 'recharge', iconType: 'wallet', iconColor: '#34d399' },
   3: { category: 'recharge', iconType: 'wallet', iconColor: '#FF6B4A' },
   4: { category: 'withdraw', iconType: 'withdraw', iconColor: '#8F8D88' },
-  5: { category: 'express', iconType: 'refresh', iconColor: '#34d399' }
+  5: { category: 'express', iconType: 'refresh', iconColor: '#34d399' },
+  6: { category: 'recharge', iconType: 'wallet', iconColor: '#0891B2' }
 }
 
 const totalIncome = ref(0)
