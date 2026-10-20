@@ -27,6 +27,12 @@ public class CertifyStatusVO implements Serializable {
     @Schema(description = "真实姓名")
     private String realName;
 
+    @Schema(description = "审核通过的校区ID（只有管理员可赋予）")
+    private Long campusId;
+
+    @Schema(description = "审核中的校区ID")
+    private Long pendingCampusId;
+
     @Schema(description = "学号")
     private String studentId;
 

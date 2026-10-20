@@ -85,6 +85,7 @@ interface MenuItem {
 const menuItems: MenuItem[] = [
   { path: '/dashboard', title: '仪表盘', icon: 'Odometer' },
   { path: '/users', title: '用户管理', icon: 'User' },
+  { path: '/campuses', title: '学校校区', icon: 'School', roles: [1, 2] },
   { path: '/audit', title: '审核管理', icon: 'CircleCheck' },
   { path: '/runners', title: '跑腿员管理', icon: 'Van' },
   { path: '/tasks', title: '任务管理', icon: 'List' },

@@ -9,6 +9,11 @@
             <el-table-column prop="nickname" label="昵称" min-width="100" />
             <el-table-column prop="realName" label="真实姓名" min-width="90" />
             <el-table-column prop="studentId" label="学号" min-width="110" />
+            <el-table-column label="申请校区" min-width="180">
+              <template #default="{ row }">
+                <el-tag :type="row.pendingCampusId ? 'info' : 'danger'">{{ campusLabel(row.pendingCampusId) }}</el-tag>
+              </template>
+            </el-table-column>
             <el-table-column prop="phone" label="手机号" min-width="130" />
             <el-table-column label="认证照片" width="90">
               <template #default="{ row }">
@@ -72,8 +77,23 @@ import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { listUsers, reviewUserCertification } from '@/api/users'
 import { listRunners, reviewRunnerCertification } from '@/api/runners'
+import { listCampuses } from '@/api/campuses'
+import type { CampusOption } from '@/api/campuses'
 
 const activeTab = ref('userCert')
+const campuses = ref<CampusOption[]>([])
+function campusLabel(id: number | null | undefined) {
+  if (id == null) return '未选择（不可通过）'
+  const campus = campuses.value.find(c => c.campusId === id)
+  return campus ? campus.schoolName + ' / ' + campus.campusName : '未知校区 ' + id
+}
+async function fetchCampuses() {
+  try {
+    campuses.value = await listCampuses() as unknown as CampusOption[]
+  } catch {
+    campuses.value = []
+  }
+}
 
 const userLoading = ref(false)
 const userTable = ref<any[]>([])
@@ -91,7 +111,11 @@ async function fetchUsers() {
 }
 
 async function approveUser(row: any) {
-  await ElMessageBox.confirm(`确认通过用户 "${row.nickname || row.username}" 的实名认证？`, '提示', { type: 'success' })
+  if (!row.pendingCampusId || !campuses.value.some(c => c.campusId === row.pendingCampusId)) {
+    ElMessage.error('该申请没有有效校区，无法批准')
+    return
+  }
+  await ElMessageBox.confirm(`确认审核用户 "${row.nickname || row.username}" 并绑定校区 "${campusLabel(row.pendingCampusId)}"？`, '提示', { type: 'warning' })
   await reviewUserCertification(row.id, 2)
   ElMessage.success('已通过认证')
   fetchUsers()
@@ -151,7 +175,7 @@ const imgVisible = ref(false)
 const imgUrl = ref('')
 function previewImg(url: string) { imgUrl.value = url; imgVisible.value = true }
 
-onMounted(() => { fetchUsers(); fetchRunners() })
+onMounted(() => { fetchCampuses(); fetchUsers(); fetchRunners() })
 </script>
 
 <style scoped>

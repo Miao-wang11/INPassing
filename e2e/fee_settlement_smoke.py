@@ -24,8 +24,8 @@ def perform_with_busy_retry(method, path, payload, token, label):
 def main():
     # Use real BCrypt hashes + seeded pay password. These accounts are CI-only.
     for name in ("ci_fee_publisher", "ci_fee_runner"):
-        sql("INSERT INTO user (username,password,pay_password,nickname,status,is_certify,balance) "
-            f"SELECT '{name}',password,pay_password,'CI Accounting',1,2,100 "
+        sql("INSERT INTO user (username,password,pay_password,nickname,status,is_certify,balance,campus_id) "
+            f"SELECT '{name}',password,pay_password,'CI Accounting',1,2,100,campus_id "
             "FROM user WHERE username='testuser2'")
 
     publisher_id = int(sql("SELECT id FROM user WHERE username='ci_fee_publisher'"))

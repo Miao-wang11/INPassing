@@ -24,6 +24,7 @@ import com.ikeu.model.vo.UserInfoVO;
 import com.ikeu.model.vo.UserLoginVO;
 import com.ikeu.server.mapper.*;
 import com.ikeu.server.service.UserService;
+import com.ikeu.server.service.CampusCatalogService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -50,6 +51,7 @@ import java.time.LocalDateTime;
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
     private final UserMapper userMapper;
+    private final CampusCatalogService campusCatalogService;
     private final RunnerProfileMapper runnerProfileMapper;
     private final TransactionRecordMapper transactionRecordMapper;
     private final ReviewMapper reviewMapper;
@@ -534,6 +536,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new BusinessException(MessageConstant.CERTIFY_CHECKING);
         }
 
+        // The submitted campus is UNTRUSTED until an admin approves this application.
+        campusCatalogService.requireActive(realNameAuthDTO.getCampusId());
+        user.setPendingCampusId(realNameAuthDTO.getCampusId());
+        user.setCampusId(null);
         // 将认证信息保存到 user 表
         user.setRealName(realNameAuthDTO.getRealName());
         user.setStudentId(realNameAuthDTO.getStudentId());
@@ -750,6 +756,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 .realName(user.getRealName())
                 .studentId(user.getStudentId())
                 .certifyImg(user.getCertifyImg())
+                .campusId(user.getCampusId())
+                .pendingCampusId(user.getPendingCampusId())
                 .build();
     }
 

@@ -38,7 +38,7 @@ jobs:
         run: mvn -B -ntp -DskipTests package
       - name: Regression test for cross-user task details
         working-directory: backend
-        run: mvn -B -ntp -pl runningerrands-server -am -Dtest=TaskDetailPrivacyTest,StudentAcceptanceProfileServiceTest,TaskFeeBreakdownTest,CreditScoreAspectTest -Dsurefire.failIfNoSpecifiedTests=false test
+        run: mvn -B -ntp -pl runningerrands-server -am -Dtest=TaskDetailPrivacyTest,StudentAcceptanceProfileServiceTest,TaskFeeBreakdownTest,CreditScoreAspectTest,CampusCatalogServiceTest -Dsurefire.failIfNoSpecifiedTests=false test
 
   admin-build:
     runs-on: ubuntu-latest
@@ -60,7 +60,9 @@ jobs:
           const files = [
             '../mobile/pages/task-hall/task-hall.vue',
             '../mobile/pages/runner-cert/runner-cert.vue',
-            '../mobile/pages-user/runner-cert/runner-cert.vue'
+            '../mobile/pages-user/runner-cert/runner-cert.vue',
+            '../mobile/pages/certify/certify.vue',
+            '../mobile/pages-user/certify/certify.vue'
           ]
           for (const file of files) {
             const raw = fs.readFileSync(file, 'utf8')
@@ -121,6 +123,14 @@ jobs:
         run: python3 e2e/student_dual_role_smoke.py
       - name: Verify prepaid fee ledger and no duplicate settlement
         run: python3 e2e/fee_settlement_smoke.py
+      - name: Reset login IP rate window in disposable CI Redis only
+        run: |
+          # Production rate limits are unchanged. Spring Docker uses Redis database 1 (not the redis-cli default 0).
+          # The previous test suites
+          # have legitimately consumed the shared localhost login allowance.
+          docker exec rr-redis sh -c 'redis-cli -n 1 --scan --pattern "user:login:rate:*" | while IFS= read -r key; do redis-cli -n 1 DEL "$key" >/dev/null; done'
+      - name: Verify cross-campus privacy and verified campus membership
+        run: python3 e2e/campus_isolation_smoke.py
       - name: Dump logs on failure
         if: failure()
         run: docker compose -f docker/docker-compose.yml logs --tail=150

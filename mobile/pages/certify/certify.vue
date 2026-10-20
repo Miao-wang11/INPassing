@@ -47,6 +47,12 @@
             <text class="form-label">学号</text>
             <input class="form-input" v-model="form.studentId" placeholder="请输入学号" placeholder-style="color:#D4D2CC" />
           </view>
+          <view class="form-item">
+            <text class="form-label">所在学校 / 校区（需审核）</text>
+            <picker :range="campuses" range-key="label" @change="onCampusPick">
+              <view class="form-input">{{ selectedCampusLabel }}</view>
+            </picker>
+          </view>
           <view class="form-item form-item--upload">
             <text class="form-label">学生证照片</text>
             <UploadGrid v-model="certImages" :maxCount="1" />
@@ -169,14 +175,36 @@ const submitting = ref(false)
 const certInfo = ref({ realName: '', studentId: '', certifyImg: '', certifyRemark: '' })
 
 const certImages = ref([])
+const campuses = ref([])
+const selectedCampusLabel = computed(() => {
+  const campus = campuses.value.find(c => c.campusId === form.campusId)
+  return campus ? campus.label : '请选择学校和校区'
+})
+async function loadCampuses() {
+  try {
+    const items = await userApi.listCampuses({showLoading:false})
+    campuses.value = (items || []).map(c => ({
+      ...c,
+      label: c.schoolName + ' / ' + c.campusName
+    }))
+  } catch (e) {
+    campuses.value = []
+  }
+}
+function onCampusPick(event) {
+  const item = campuses.value[Number(event.detail.value)]
+  if (item) form.campusId = item.campusId
+}
+
 
 const form = reactive({
   realName: '',
   studentId: '',
-  certImageUrl: ''
+  certImageUrl: '',
+  campusId: null
 })
 
-const canSubmit = computed(() => form.realName.trim() && form.studentId.trim() && certImages.value.length > 0 && !submitting.value)
+const canSubmit = computed(() => form.realName.trim() && form.studentId.trim() && certImages.value.length > 0 && form.campusId != null && !submitting.value)
 
 function determineState(isCertify) {
   if (isCertify === 0) return 'form'
@@ -197,6 +225,7 @@ async function loadStatus() {
         certifyRemark: data.verifyRemark || ''
       }
       state.value = determineState(data.isCertify)
+      if (data.pendingCampusId) form.campusId = data.pendingCampusId
 
       // Pre-fill form if rejected or not yet submitted
       if (certInfo.value.realName) form.realName = certInfo.value.realName
@@ -217,7 +246,7 @@ async function onSubmit() {
   form.certImageUrl = certImages.value[0] || ''
   submitting.value = true
   try {
-    await userApi.certify(form.realName.trim(), form.studentId.trim(), form.certImageUrl)
+    await userApi.certify(form.realName.trim(), form.studentId.trim(), form.certImageUrl, form.campusId)
     uni.showToast({ title: '认证提交成功', icon: 'success' })
     store.userInfo.isCertify = 1
     store.userInfo.realName = form.realName.trim()
@@ -250,8 +279,9 @@ function goBack() {
   uni.navigateBack({ delta: 1, fail: () => uni.switchTab({ url: '/pages/user-profile/user-profile' }) })
 }
 
-onShow(() => { loadStatus() })
+onShow(() => { loadStatus(); loadCampuses() })
 loadStatus()
+loadCampuses()
 </script>
 
 <style scoped>

@@ -21,6 +21,9 @@ public class TaskListVO implements Serializable {
     @Schema(name = "任务ID")
     private Long taskId;
 
+    @Schema(name = "任务所在校区ID")
+    private Long campusId;
+
     @Schema(name = "发布者ID")
     private Long publisherId;
 

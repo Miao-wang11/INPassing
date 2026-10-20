@@ -9,6 +9,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.ikeu.common.constant.MessageConstant;
+import com.ikeu.common.context.BaseContext;
 import com.ikeu.common.constant.RedisConstant;
 import com.ikeu.common.constant.StatusConstant;
 import com.ikeu.common.money.TaskFeeBreakdown;
@@ -28,6 +29,7 @@ import com.ikeu.server.annotation.RedisDefend;
 import com.ikeu.server.mapper.*;
 import com.ikeu.server.service.PaymentService;
 import com.ikeu.server.service.TaskService;
+import com.ikeu.server.service.CampusCatalogService;
 import com.ikeu.server.util.RedisDefendUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -60,6 +62,7 @@ import java.util.stream.Collectors;
 public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements TaskService {
 
     private final TaskMapper taskMapper;
+    private final CampusCatalogService campusCatalogService;
     private final UserMapper userMapper;
     private final UserAddressMapper userAddressMapper;
     private final TaskImageMapper taskImageMapper;
@@ -190,6 +193,8 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     @Override
     @Transactional
     public Task publishTask(Long userId, TaskPublishDTO taskPublishDTO) {
+        // Campus comes ONLY from the approved user's membership, not the DTO.
+        Long campusId = campusCatalogService.requireUserCampus(userId);
         // 校验支付密码
         paymentService.verifyPayPassword(userId, taskPublishDTO.getPayPassword());
         // 校验用户状态
@@ -261,6 +266,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
 
         task.setTaskNo(taskNo);
         task.setPublisherId(userId);
+        task.setCampusId(campusId);
 
         if (taskPublishDTO.getSubType() != null) {
             task.setSubType(taskPublishDTO.getSubType());
@@ -341,39 +347,42 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     public PageResult<TaskListVO> listTasksHall(String type, String subType, BigDecimal minReward,
                                             BigDecimal maxReward, BigDecimal lng, BigDecimal lat,
                                             int page, int size) {
+        Long campusId = campusCatalogService.requireUserCampus(BaseContext.getCurrentId());
         boolean canCache = type == null && subType == null && minReward == null
                 && maxReward == null;
 
         if (canCache) {
-            String cacheKey = page + ":" + size;
+            // Tenant-scoped cache keys prevent cross-campus cache disclosure.
+            String cacheKey = campusId + ":" + page + ":" + size;
             Cache cache = cacheManager.getCache(RedisConstant.CACHE_TASK_HALL);
             TypeReference<PageResult<TaskListVO>> typeRef = new TypeReference<>() {};
 
             PageResult<TaskListVO> result = redisDefendUtil.getOrLoad(
                     cache, cacheKey,
                     RedisConstant.TASK_HALL_NULL_PREFIX + cacheKey, RedisConstant.TASK_NOT_EXIST_TTL,
-                    RedisConstant.TASK_HALL_LOCK_KEY + page,
+                    RedisConstant.TASK_HALL_LOCK_KEY + campusId + ":" + page,
                     (long) RedisConstant.LOCK_WAIT_TIME, (long) RedisConstant.LOCK_EXPIRE,
                     typeRef.getType(),
                     () -> {
-                        PageResult<TaskListVO> r = queryHallTasks(null, null, null, null, page, size);
+                        PageResult<TaskListVO> r = queryHallTasks(campusId, null, null, null, null, page, size);
                         return r.getTotal() > 0 ? r : null;
                     }
             );
             return result != null ? result : new PageResult<>(0L, List.of());
         }
 
-        return queryHallTasks(type, subType, minReward, maxReward, page, size);
+        return queryHallTasks(campusId, type, subType, minReward, maxReward, page, size);
     }
 
     /**
      * 查询任务大厅列表（无缓存），可被带锁分支调用或作为非缓存请求的降级路径。
      */
-    private PageResult<TaskListVO> queryHallTasks(String type, String subType,
+    private PageResult<TaskListVO> queryHallTasks(Long campusId, String type, String subType,
                                                   BigDecimal minReward, BigDecimal maxReward,
                                                   int page, int size) {
         LambdaQueryWrapper<Task> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Task::getStatus, StatusConstant.TASK_WAITING)
+        wrapper.eq(Task::getCampusId, campusId)
+                .eq(Task::getStatus, StatusConstant.TASK_WAITING)
                 .gt(Task::getExpireTime, LocalDateTime.now())
                 .eq(type != null && !type.isEmpty(), Task::getType, type)
                 .eq(subType != null && !subType.isEmpty(), Task::getSubType, subType)
@@ -476,6 +485,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         if (task == null) {
             throw new BusinessException(MessageConstant.TASK_NOT_EXIST);
         }
+        campusCatalogService.requireSameCampus(task, currentUserId);
         TaskDetailVO vo = buildTaskDetailVO(task, currentUserId);
         applyTaskDetailMasking(vo);
         return vo;
@@ -575,8 +585,9 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     @Override
     public PageResult<TaskListVO> searchTasks(String keyword, String type, BigDecimal minReward,
                                               BigDecimal maxReward, int page, int size) {
+        Long campusId = campusCatalogService.requireUserCampus(BaseContext.getCurrentId());
         Page<Task> taskPage = taskMapper.searchTasks(
-                new Page<>(page, size), keyword, type, minReward, maxReward);
+                new Page<>(page, size), keyword, type, minReward, maxReward, campusId);
         return buildTaskListResult(taskPage);
     }
 
@@ -599,9 +610,10 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     public PageResult<TaskListVO> filterTasks(String type, String pickupAddress, String deliveryAddress,
                                               String requireSex, BigDecimal minReward, BigDecimal maxReward,
                                               int page, int size) {
+        Long campusId = campusCatalogService.requireUserCampus(BaseContext.getCurrentId());
         Page<Task> taskPage = taskMapper.filterTasks(
                 new Page<>(page, size), type, pickupAddress, deliveryAddress,
-                requireSex, minReward, maxReward);
+                requireSex, minReward, maxReward, campusId);
         return buildTaskListResult(taskPage);
     }
 
@@ -620,9 +632,10 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     @Override
     public PageResult<TaskListVO> listTasksNearby(BigDecimal lng, BigDecimal lat, Double radiusKm,
                                                   int page, int size) {
+        Long campusId = campusCatalogService.requireUserCampus(BaseContext.getCurrentId());
         int offset = (page - 1) * size;
-        List<Task> tasks = taskMapper.selectNearbyTasks(lng, lat, radiusKm, offset, size);
-        Long total = taskMapper.countNearbyTasks(lng, lat, radiusKm);
+        List<Task> tasks = taskMapper.selectNearbyTasks(lng, lat, radiusKm, offset, size, campusId);
+        Long total = taskMapper.countNearbyTasks(lng, lat, radiusKm, campusId);
         if (tasks.isEmpty()) {
             return new PageResult<>(0L, Collections.emptyList());
         }

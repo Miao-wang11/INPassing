@@ -103,8 +103,8 @@ def main():
     racers = []
     for n in range(4):
         username = f"ci_runner_{n}"
-        sql("INSERT INTO user (username,password,pay_password,nickname,status,is_certify,balance) "
-            f"SELECT '{username}',password,pay_password,'CI Racer',1,2,100 "
+        sql("INSERT INTO user (username,password,pay_password,nickname,status,is_certify,balance,campus_id) "
+            f"SELECT '{username}',password,pay_password,'CI Racer',1,2,100,campus_id "
             "FROM user WHERE username='testuser2'")
         racers.append(ok(api("POST", "/user/login", {
             "loginType": 1, "username": username, "password": "123456"
@@ -124,8 +124,8 @@ def main():
 
     # Different task locks cannot protect global worker capacity.
     # Two independent tasks race to consume exactly one free order slot.
-    sql("INSERT INTO user (username,password,pay_password,nickname,status,is_certify,balance) "
-        "SELECT 'ci_capacity',password,pay_password,'Capacity Test',1,2,100 "
+    sql("INSERT INTO user (username,password,pay_password,nickname,status,is_certify,balance,campus_id) "
+        "SELECT 'ci_capacity',password,pay_password,'Capacity Test',1,2,100,campus_id "
         "FROM user WHERE username='testuser2'")
     cap_id = int(sql("SELECT id FROM user WHERE username='ci_capacity'"))
     cap_token = ok(api("POST", "/user/login", {

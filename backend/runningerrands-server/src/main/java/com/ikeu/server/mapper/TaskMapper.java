@@ -45,22 +45,22 @@ public interface TaskMapper extends BaseMapper<Task> {
      */
     @Select("SELECT *, (6371 * acos(cos(radians(#{lat})) * cos(radians(pickup_lat)) * " +
             "cos(radians(pickup_lng) - radians(#{lng})) + sin(radians(#{lat})) * sin(radians(pickup_lat)))) " +
-            "AS distance FROM task WHERE status = 1 AND expire_time > NOW() " +
+            "AS distance FROM task WHERE campus_id = #{campusId} AND status = 1 AND expire_time > NOW() " +
             "AND pickup_lng IS NOT NULL AND pickup_lat IS NOT NULL " +
             "HAVING distance < #{radiusKm} ORDER BY distance LIMIT #{offset}, #{size}")
     List<Task> selectNearbyTasks(@Param("lng") BigDecimal lng, @Param("lat") BigDecimal lat,
                                  @Param("radiusKm") Double radiusKm,
-                                 @Param("offset") int offset, @Param("size") int size);
+                                 @Param("offset") int offset, @Param("size") int size, @Param("campusId") Long campusId);
 
     /**
      * 统计指定半径内的待接单任务总数。
      */
-    @Select("SELECT COUNT(*) FROM task WHERE status = 1 AND expire_time > NOW() " +
+    @Select("SELECT COUNT(*) FROM task WHERE campus_id = #{campusId} AND status = 1 AND expire_time > NOW() " +
             "AND pickup_lng IS NOT NULL AND pickup_lat IS NOT NULL " +
             "AND (6371 * acos(cos(radians(#{lat})) * cos(radians(pickup_lat)) * " +
             "cos(radians(pickup_lng) - radians(#{lng})) + sin(radians(#{lat})) * sin(radians(pickup_lat)))) < #{radiusKm}")
     Long countNearbyTasks(@Param("lng") BigDecimal lng, @Param("lat") BigDecimal lat,
-                          @Param("radiusKm") Double radiusKm);
+                          @Param("radiusKm") Double radiusKm, @Param("campusId") Long campusId);
 
     /**
      * 按状态分组统计用户发布的任务数量。
@@ -114,7 +114,8 @@ public interface TaskMapper extends BaseMapper<Task> {
                            @Param("keyword") String keyword,
                            @Param("type") String type,
                            @Param("minReward") BigDecimal minReward,
-                           @Param("maxReward") BigDecimal maxReward);
+                           @Param("maxReward") BigDecimal maxReward,
+                           @Param("campusId") Long campusId);
 
     /**
      * 多条件筛选任务，支持取件/送达地址模糊匹配、性别要求、报酬范围。
@@ -137,5 +138,6 @@ public interface TaskMapper extends BaseMapper<Task> {
                            @Param("deliveryAddress") String deliveryAddress,
                            @Param("requireSex") String requireSex,
                            @Param("minReward") BigDecimal minReward,
-                           @Param("maxReward") BigDecimal maxReward);
+                           @Param("maxReward") BigDecimal maxReward,
+                           @Param("campusId") Long campusId);
 }

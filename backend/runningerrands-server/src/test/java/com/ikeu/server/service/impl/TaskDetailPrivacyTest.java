@@ -5,6 +5,7 @@ import com.ikeu.model.entity.User;
 import com.ikeu.model.vo.TaskDetailVO;
 import com.ikeu.server.mapper.*;
 import com.ikeu.server.service.PaymentService;
+import com.ikeu.server.service.CampusCatalogService;
 import com.ikeu.server.util.RedisDefendUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,7 +28,8 @@ class TaskDetailPrivacyTest {
     void setUp() {
         taskMapper = mock(TaskMapper.class);
         UserMapper userMapper = mock(UserMapper.class);
-        service = new TaskServiceImpl(taskMapper, userMapper,
+        CampusCatalogService campuses = mock(CampusCatalogService.class);
+        service = new TaskServiceImpl(taskMapper, campuses, userMapper,
                 mock(UserAddressMapper.class), mock(TaskImageMapper.class),
                 mock(ReviewMapper.class), mock(PaymentService.class),
                 mock(RedissonClient.class), mock(CacheManager.class),

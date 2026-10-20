@@ -69,8 +69,13 @@ export function changePayPassword(oldPayPassword, newPayPassword) {
 }
 
 /** 提交实名认证（学生身份） */
-export function certify(realName, studentId, certImageUrl) {
-  return post('/user/certify', { realName, studentId, certImageUrl })
+export function certify(realName, studentId, certImageUrl, campusId) {
+  return post('/user/certify', { realName, studentId, certImageUrl, campusId })
+}
+
+/** Public campus list for certified membership application. */
+export function listCampuses(opts = {}) {
+  return get('/campus/list', {}, {auth: 'none', ...opts})
 }
 
 /** 退出登录 */

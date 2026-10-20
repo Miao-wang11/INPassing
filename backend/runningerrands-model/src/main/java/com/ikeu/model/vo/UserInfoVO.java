@@ -62,6 +62,12 @@ public class UserInfoVO implements Serializable {
     @Schema(description = "学院")
     private String campus;
 
+    @Schema(description = "经过学生认证审核确认的校区ID")
+    private Long campusId;
+
+    @Schema(description = "待审核的校园归属申请（不是已授权身份）")
+    private Long pendingCampusId;
+
     @Schema(description = "个性签名")
     private String signature;
 
