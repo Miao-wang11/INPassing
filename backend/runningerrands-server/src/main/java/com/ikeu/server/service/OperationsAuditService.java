@@ -87,7 +87,7 @@ public class OperationsAuditService {
         return rows.get(0);
     }
 
-    /** Diagnostics are bounded; default 30 days and 200 rows maximum. */
+    /** Diagnostics are bounded to the most recent 200 anomalies by task ID. */
     public List<LedgerCheck> suspicious(int limit) {
         if(limit<1||limit>200)throw new BusinessException("最多查询200条");
         // Return only anomalous rows. A subquery avoids post-filtering 200

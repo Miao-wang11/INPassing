@@ -624,3 +624,6 @@ CREATE TABLE IF NOT EXISTS dispute_event (
   KEY idx_dispute_event (dispute_id, created_at),
   CONSTRAINT fk_dispute_event FOREIGN KEY (dispute_id) REFERENCES order_dispute(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Operational finance read-model query index
+ALTER TABLE `transaction_record` ADD INDEX `idx_tr_task_type` (`task_id`,`type`);
