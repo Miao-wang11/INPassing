@@ -98,7 +98,8 @@ async function connect(token) {
   const client = new Client(ws);
   client.send('CONNECT', { 'accept-version': '1.2', host: 'localhost', 'heart-beat': '0,0' });
   await client.wait(p => p.command === 'CONNECTED');
-  client.send('SUBSCRIBE', { id: 'sub-chat', destination: '/user/queue/chat', ack: 'auto' });
+  client.send('SUBSCRIBE', { id: 'sub-chat', destination: '/user/queue/chat', ack: 'auto', receipt: 'chat-subscribed' });
+  await client.wait(packet => packet.command === 'RECEIPT', 5000);
   return client;
 }
 
