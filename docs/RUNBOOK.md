@@ -63,6 +63,21 @@ docker compose ps
 
 首次全新安装没有历史数据时，Docker 自动执行 `backend/runningerrands.sql` 初始化（包含本批新表），**不要**再另外运行增量脚本。
 
+## B2.2. 阶段 4 售后争议表迁移（已有数据库升级）
+
+执行之前必须确认已完成阶段 2 的学校校区和阶段 3 的服务橱窗迁移；此脚本**只执行一次**，首次新库不需要单独执行。请先暂停业务写入、备份 `runningerrands` 且验证备份可恢复。
+
+```powershell
+# 仓库根目录：git pull origin main
+cd docker
+Get-Content -Raw ..\backend\migrations\20261020_order_dispute.sql |
+  docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot runningerrands'
+docker compose up -d --build
+docker compose ps
+```
+
+升级只新增 `order_dispute` 和 `dispute_event`，不清除历史订单、资金流水、旧用户。管理员进入“售后纠纷”，只有超级管理员能进行真实仲裁按钮操作；对于以前已结算或已取消的订单，必须按历史账务单独核查，不能在这套未结算模拟退款流程里直接追回钱。
+
 ## B3. 首次运营配置
 
 非演示环境 `SHUNSHOU_DEMO_SEED=false` 不会生成虚构学校。请以超级管理员登录后台，在左侧 **学校校区** 页面先添加学校，再添加对应校区。随后学生在认证页面选择学校/校区，审核人员在 **审核管理** 页面确认申请校区后通过；获批校区才可发布或接取本校区任务。已有学号/院系文本不能直接证明校区归属。
