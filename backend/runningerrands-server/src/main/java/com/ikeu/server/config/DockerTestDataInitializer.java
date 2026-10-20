@@ -8,6 +8,7 @@ import com.ikeu.server.mapper.RunnerProfileMapper;
 import com.ikeu.server.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
@@ -25,6 +26,7 @@ import java.time.LocalDateTime;
 @Slf4j
 @Component
 @Profile("docker")
+@ConditionalOnProperty(name = "shunshou.demo-seed", havingValue = "true")
 @RequiredArgsConstructor
 public class DockerTestDataInitializer implements ApplicationRunner {
 
