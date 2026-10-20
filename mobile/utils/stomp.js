@@ -88,7 +88,12 @@ export class StompClient {
       })
 
       this._socket.onError((err) => {
-        finish(err)
+        if (this._connected) {
+          // Treat a transport error after CONNECTED as a dropped socket.
+          try { this._socket.close() } catch (_) { this._connected = false; this.onDisconnect?.() }
+        } else {
+          finish(err)
+        }
       })
 
       this._socket.onClose(() => {
