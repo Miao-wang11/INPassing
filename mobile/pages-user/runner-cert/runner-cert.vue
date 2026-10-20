@@ -6,7 +6,7 @@
           <iconpark-icon name="left" size="22" color="#FF6B4A" />
         </view>
       </template>
-      <view class="nav-title-wrap"><text class="nav-title-text">配送员认证</text></view>
+      <view class="nav-title-wrap"><text class="nav-title-text">学生接单资格</text></view>
       <template v-slot:right><view></view></template>
     </uni-nav-bar>
 
@@ -18,7 +18,7 @@
             <iconpark-icon name="locked-filled" size="48" color="#F59E0B" />
           </view>
           <text class="status-title">请先完成学生实名认证</text>
-          <text class="status-desc">申请成为配送员前，需要先通过学生身份认证</text>
+          <text class="status-desc">接单前需要先通过学生身份认证</text>
         </view>
 
         <view class="info-card">
@@ -35,14 +35,14 @@
 
       <!-- Step 1: 已认证 → 根据 verifyStatus 展示 -->
       <template v-else>
-        <!-- verifyStatus === 0: 未申请 → 展示认证信息 + 申请按钮 -->
+        <!-- Certified student without a legacy runner profile: direct acceptance. -->
         <template v-if="runnerState === 'none'">
           <view class="status-card">
             <view class="status-icon status-icon--info">
               <iconpark-icon name="deliveryTruck" size="48" color="#FF6B4A" />
             </view>
-            <text class="status-title">申请成为配送员</text>
-            <text class="status-desc">成为配送员后可在任务大厅接单，赚取报酬</text>
+            <text class="status-title">学生认证已通过</text>
+            <text class="status-desc">一个账号既可发布需求，也可在任务大厅承接任务</text>
           </view>
 
           <view class="info-card">
@@ -62,11 +62,11 @@
 
           <view class="notice-card">
             <iconpark-icon name="info-filled" size="16" color="#FF6B4A" />
-            <text>申请提交后由管理员审核，通常1-3个工作日内完成</text>
+            <text>无需申请第二种账号；首次成功接单时自动建立接单统计档案</text>
           </view>
 
-          <view class="submit-btn" :class="{ 'submit-btn--disabled': applying }" @click="onApply">
-            <text>{{ applying ? '提交中…' : '提交申请' }}</text>
+          <view class="submit-btn" @click="goHall">
+            <text>前往任务大厅</text>
           </view>
         </template>
 
@@ -77,7 +77,7 @@
               <iconpark-icon name="hourglass" size="48" color="#F59E0B" />
             </view>
             <text class="status-title">配送员申请审核中</text>
-            <text class="status-desc">你的配送员申请正在审核中，通常1-3个工作日内完成，请留意通知</text>
+            <text class="status-desc">历史接单资格申请正在审核中，不会自动绕过原有审核，请联系管理员</text>
           </view>
 
           <view class="info-card">
@@ -103,7 +103,7 @@
               <iconpark-icon name="checkbox-filled" size="48" color="#34d399" />
             </view>
             <text class="status-title">配送员认证已通过</text>
-            <text class="status-desc">你已是认证配送员，可在任务大厅接单</text>
+            <text class="status-desc">使用同一学生账号，可在任务大厅接单</text>
           </view>
 
           <view class="info-card">
@@ -134,7 +134,7 @@
               <iconpark-icon name="closeempty" size="48" color="#ba1a1a" />
             </view>
             <text class="status-title">申请已驳回</text>
-            <text class="status-desc">{{ runnerRemark || '你的配送员申请未通过审核，可重新提交' }}</text>
+            <text class="status-desc">{{ runnerRemark || '历史接单资格受限，请联系管理员处理' }}</text>
           </view>
 
           <view class="info-card">
@@ -148,9 +148,7 @@
             </view>
           </view>
 
-          <view class="submit-btn" @click="onReapply">
-            <text>重新提交申请</text>
-          </view>
+
         </template>
       </template>
 
@@ -169,7 +167,6 @@ const store = useStore()
 const sysInfo = uni.getSystemInfoSync()
 const scrollHeight = sysInfo.windowHeight - sysInfo.statusBarHeight - 44
 
-const applying = ref(false)
 const runnerRemark = ref('')
 
 const runnerState = computed(() => {
@@ -197,22 +194,6 @@ async function loadRunnerInfo() {
     if (profile.verifyRemark) runnerRemark.value = profile.verifyRemark
     store.userInfo.verifyStatus = profile.verifyStatus
   } catch (e) { /* 非认证用户或未申请时忽略 */ }
-}
-
-async function onApply() {
-  if (applying.value) return
-  applying.value = true
-  try {
-    await runnerApi.applyRunner()
-    store.userInfo.verifyStatus = 1
-    uni.showToast({ title: '申请已提交', icon: 'success' })
-  } catch (e) { /* handled */ }
-  applying.value = false
-}
-
-function onReapply() {
-  runnerRemark.value = ''
-  onApply()
 }
 
 function goCertify() {
