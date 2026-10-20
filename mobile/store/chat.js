@@ -9,7 +9,7 @@ import { chatApi } from '@/api'
 import { StompClient } from '@/utils/stomp'
 import { WS_URL, BASE_URL } from '@/utils/config'
 import { showToast } from '@/utils/toast'
-import { getToken, getRefreshToken, setToken, setRefreshToken, removeToken, removeRefreshToken } from '@/utils/request'
+import { getToken, getRefreshToken, setToken, setRefreshToken } from '@/utils/request'
 
 export const useChatStore = defineStore('chat', () => {
   // ---- state ----
@@ -35,6 +35,21 @@ export const useChatStore = defineStore('chat', () => {
   let _retryTimer = null
   let _retryCount = 0
   const MAX_RETRIES = 3
+
+  // Retry temporary transport failures without expiring the user's HTTP login.
+  function scheduleReconnect() {
+    if (_retryTimer || wsConnected.value || _connecting.value || !getToken()) return
+    if (_retryCount >= MAX_RETRIES) {
+      console.warn('[ChatStore] 自动重连次数已用完，可在消息页手动重试')
+      return
+    }
+    const delay = Math.min(1000 * (2 ** _retryCount), 10000)
+    _retryCount++
+    _retryTimer = setTimeout(() => {
+      _retryTimer = null
+      if (!wsConnected.value && getToken()) connectStomp()
+    }, delay)
+  }
 
   /** 尝试用 refresh token 换取新 access token，失败返回 null */
   async function refreshUserToken() {
@@ -84,6 +99,13 @@ export const useChatStore = defineStore('chat', () => {
       await client.connect(`${WS_URL}/chat?token=${encodeURIComponent(effectiveToken)}`)
       wsConnected.value = true
       stompClient.value = client
+      client.onDisconnect = () => {
+        if (stompClient.value !== client) return
+        console.warn('[ChatStore] STOMP transport disconnected; reconnect scheduled')
+        stompClient.value = null
+        wsConnected.value = false
+        scheduleReconnect()
+      }
       _connecting.value = false
       _retryCount = 0
       console.log('[ChatStore] STOMP connected, subscribing...')
@@ -103,50 +125,27 @@ export const useChatStore = defineStore('chat', () => {
       try { client.disconnect() } catch (_) { /* ignore */ }
       console.error('[ChatStore] STOMP connect failed:', e)
 
-      // wcwss exceed: 微信 WebSocket 连接数已满，重试只会加深问题
+      // A transport outage is not proof that the access token expired.
+      // Never clear the application login after a transient socket failure.
       const errMsg = e?.errMsg || e?.message || ''
       if (errMsg.includes('exceed max concurrent')) {
-        console.warn('[ChatStore] WebSocket 连接数已满，放弃本次连接')
-        disconnectStomp()
+        console.warn('[ChatStore] WebSocket connection quota exceeded')
         return
       }
-
-      // 超过最大重试次数，放弃
-      _retryCount++
-      if (_retryCount > MAX_RETRIES) {
-        console.warn('[ChatStore] STOMP 重试次数已达上限，放弃连接')
-        _retryCount = 0
-        disconnectStomp()
-        return
-      }
-
-      // 尝试刷新 token 后再重连
-      try {
+      if (e?.isAuthError) {
         const newToken = await refreshUserToken()
-        if (newToken) {
-          console.log(`[ChatStore] Token refreshed, retrying STOMP (${_retryCount}/${MAX_RETRIES})`)
-          _retryTimer = setTimeout(() => {
-            if (!wsConnected.value) connectStomp()
-          }, 3000)
-        } else {
-          throw new Error('REFRESH_FAILED')
+        if (!newToken) {
+          console.warn('[ChatStore] Chat token refresh was unsuccessful')
+          showToast('聊天认证失败，请检查登录状态')
+          return
         }
-      } catch (_) {
-        console.warn('[ChatStore] Token refresh failed, giving up')
-        _retryCount = 0
-        disconnectStomp()
-        clearCache()
-        removeToken()
-        removeRefreshToken()
-        showToast('登录已过期，请重新登录', { duration: 2000 })
-        setTimeout(() => {
-          uni.reLaunch({ url: '/pages/login/login' })
-        }, 1500)
       }
+      scheduleReconnect()
     }
   }
 
   function disconnectStomp() {
+    _retryCount = 0
     if (_retryTimer) { clearTimeout(_retryTimer); _retryTimer = null }
     if (stompClient.value) {
       try { stompClient.value.disconnect() } catch (e) { /* ignore */ }

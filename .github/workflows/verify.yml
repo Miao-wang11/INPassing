@@ -89,6 +89,11 @@ jobs:
 
       - name: Regression test for fragmented mobile STOMP frames
         run: node e2e/mobile_stomp_parser_smoke.mjs
+      - name: Regression test for unexpected STOMP disconnection and authentication errors
+        run: |
+          node --check mobile/store/chat.js
+          node --check mobile/utils/stomp.js
+          node e2e/mobile_stomp_disconnect_smoke.mjs
 
   docker-smoke:
     runs-on: ubuntu-latest
