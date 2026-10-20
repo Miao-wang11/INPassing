@@ -3,7 +3,7 @@
  */
 import { get, post, del } from '@/utils/request'
 
-/** 跑腿员接单 (需要认证、在线、信用分≥60) */
+/** 学生接单（首次自动创建接单统计档案；已有封禁/离线限制仍生效） */
 export function acceptOrder(taskId) {
   return post(`/order/accept/${taskId}`)
 }

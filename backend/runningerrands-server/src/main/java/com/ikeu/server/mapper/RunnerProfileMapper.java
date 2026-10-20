@@ -17,6 +17,26 @@ import org.apache.ibatis.annotations.Update;
 public interface RunnerProfileMapper extends BaseMapper<RunnerProfile> {
 
     /**
+     * Lazily create the delivery-capacity/statistics profile of a certified
+     * student.  user.uk_user_id makes the operation concurrency-safe:
+     * duplicate attempts NEVER reset bans, credit scores or online flags.
+     *
+     * A profile is NOT a second login/merchant identity. Only a user who
+     * explicitly attempts to accept a task creates this auxiliary record.
+     * Returns 0 when a profile already exists (no-op update) or when the
+     * user is not eligible. The caller must read back and validate it.
+     */
+    @org.apache.ibatis.annotations.Insert(
+            "INSERT INTO runner_profile " +
+            "(user_id, real_name, verify_status, credit_score, total_orders, " +
+            " success_orders, avg_rating, is_online, max_concurrent_orders, " +
+            " current_orders, is_banned, created_at, updated_at) " +
+            "SELECT id, COALESCE(real_name, ''), 2, 100, 0, 0, 5.0, 1, 3, 0, 0, NOW(), NOW() " +
+            "FROM user WHERE id = #{userId} AND status = 1 AND is_certify = 2 " +
+            "ON DUPLICATE KEY UPDATE user_id = user_id")
+    int createForCertifiedStudentIfAbsent(@Param("userId") Long userId);
+
+    /**
      * 单次 JOIN 查询替代双阶段关键词搜索，关联 user 表匹配昵称或手机号。
      *
      * @param page 分页对象

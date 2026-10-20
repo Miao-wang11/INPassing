@@ -27,6 +27,7 @@ import com.ikeu.server.mapper.*;
 import com.ikeu.server.service.NotificationService;
 import com.ikeu.server.service.PaymentService;
 import com.ikeu.server.service.TaskOrderService;
+import com.ikeu.server.service.StudentAcceptanceProfileService;
 import com.ikeu.server.util.RedisDefendUtil;
 
 import lombok.RequiredArgsConstructor;
@@ -60,6 +61,7 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
     private final TaskMapper taskMapper;
     private final UserMapper userMapper;
     private final RunnerProfileMapper runnerProfileMapper;
+    private final StudentAcceptanceProfileService studentAcceptanceProfileService;
     private final ReviewMapper reviewMapper;
     private final PaymentService paymentService;
     private final NotificationService notificationService;
@@ -169,9 +171,11 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
             }
         }
 
-        // 2. 校验配送员状态
-        RunnerProfile runner = runnerProfileMapper.selectOne(
-                new LambdaQueryWrapper<RunnerProfile>().eq(RunnerProfile::getUserId, runnerId));
+        // 2. A student has one login identity. On the first explicit accept,
+        // initialize an auxiliary delivery/statistics profile if needed.
+        // Existing pending/rejected/banned/offline profiles are NEVER upgraded
+        // or reactivated behind the user's back.
+        RunnerProfile runner = studentAcceptanceProfileService.ensureForAccept(runnerId);
         if (runner == null || !Objects.equals(runner.getVerifyStatus(), StatusConstant.CERTIFY_APPROVED)) {
             throw new BusinessException(MessageConstant.RUNNER_NOT_CERTIFIED);
         }

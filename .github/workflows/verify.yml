@@ -38,7 +38,7 @@ jobs:
         run: mvn -B -ntp -DskipTests package
       - name: Regression test for cross-user task details
         working-directory: backend
-        run: mvn -B -ntp -pl runningerrands-server -am -Dtest=TaskDetailPrivacyTest -Dsurefire.failIfNoSpecifiedTests=false test
+        run: mvn -B -ntp -pl runningerrands-server -am -Dtest=TaskDetailPrivacyTest,StudentAcceptanceProfileServiceTest -Dsurefire.failIfNoSpecifiedTests=false test
 
   admin-build:
     runs-on: ubuntu-latest
