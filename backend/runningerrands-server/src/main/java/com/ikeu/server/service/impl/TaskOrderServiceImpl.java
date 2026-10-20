@@ -707,6 +707,10 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
             vo.setPrivateNote("");
             vo.setTaskSpecs(null);
             vo.setDeliveryAddress("");
+            // Delivery/collection proof photos may reveal room numbers and
+            // other people; nonparticipants never receive those URLs.
+            vo.setPickupProofImgs(Collections.emptyList());
+            vo.setDeliverProofImgs(Collections.emptyList());
             String contactName = vo.getContactName();
             if (contactName != null && !contactName.isEmpty()) {
                 vo.setContactName(contactName.length() == 1
