@@ -8,6 +8,7 @@
 
 export * as userApi from './user'
 export * as taskApi from './task'
+export * as serviceOfferApi from './service-offers'
 export * as orderApi from './order'
 export * as runnerApi from './runner'
 export * as addressApi from './address'

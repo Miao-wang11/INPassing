@@ -157,6 +157,7 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
         Task task = taskMapper.selectById(taskId);
         if (task == null) throw new BusinessException(MessageConstant.TASK_NOT_EXIST);
         campusCatalogService.requireSameCampus(task, runnerId);
+        requireOfferReservation(task, runnerId);
         if (!Objects.equals(task.getStatus(), StatusConstant.TASK_WAITING)) {
             throw new BusinessException(MessageConstant.ORDER_ACCEPTED_FAIL);
         }
@@ -208,6 +209,7 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
                 throw new BusinessException(MessageConstant.TASK_NOT_EXIST);
             }
             campusCatalogService.requireSameCampus(latestTask, runnerId);
+            requireOfferReservation(latestTask, runnerId);
             if (Objects.equals(latestTask.getStatus(), StatusConstant.TASK_CANCELLED)) {
                 // 场景：锁等待期间任务被发布者取消/管理员取消/超时自动取消
                 throw new BusinessException(MessageConstant.TASK_ALREADY_CANCELLED);
@@ -298,6 +300,14 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
             if (lock.isHeldByCurrentThread()) {
                 lock.unlock();
             }
+        }
+    }
+
+    /** Prevent private service bookings from being accepted by any other runner. */
+    private void requireOfferReservation(Task task, Long runnerId) {
+        if (task.getReservedRunnerId() != null
+                && !task.getReservedRunnerId().equals(runnerId)) {
+            throw new ForbiddenException("此订单由委托者指定服务者，其他学生不能接单");
         }
     }
 

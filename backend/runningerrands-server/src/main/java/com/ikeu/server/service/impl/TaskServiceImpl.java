@@ -383,6 +383,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         LambdaQueryWrapper<Task> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Task::getCampusId, campusId)
                 .eq(Task::getStatus, StatusConstant.TASK_WAITING)
+                .isNull(Task::getReservedRunnerId)
                 .gt(Task::getExpireTime, LocalDateTime.now())
                 .eq(type != null && !type.isEmpty(), Task::getType, type)
                 .eq(subType != null && !subType.isEmpty(), Task::getSubType, subType)

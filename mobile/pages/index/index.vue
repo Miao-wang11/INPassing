@@ -99,6 +99,11 @@
         </view>
       </view>
 
+      <view class="section-header mt-32" @click="openStorefront">
+        <text class="section-title">同学服务橱窗 · 找人帮我</text>
+        <view class="section-more"><text>去逛逛 ›</text></view>
+      </view>
+
       <!-- 热门服务 -->
       <view class="section-header mt-32">
         <text class="section-title">热门服务</text>
@@ -248,6 +253,10 @@ async function onSearch(e) {
   } catch (e) { /* handled */ }
 }
 
+function openStorefront() {
+  if (!requireCertified(store)) return
+  uni.navigateTo({url:'/pages-service/storefront/storefront'})
+}
 function onService(typeValue) {
   if (!requireCertified(store)) return
   uni.navigateTo({ url: `/pages/service-publish/service-publish?type=${typeValue}` })

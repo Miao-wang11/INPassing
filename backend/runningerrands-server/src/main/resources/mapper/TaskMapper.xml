@@ -5,7 +5,7 @@
     <select id="searchTasks" resultType="com.ikeu.model.entity.Task">
         SELECT * FROM task
         <where>
-            status = 1 AND expire_time > NOW() AND campus_id = #{campusId}
+            status = 1 AND reserved_runner_id IS NULL AND expire_time > NOW() AND campus_id = #{campusId}
             <if test="keyword != null and keyword != ''">
                 AND public_desc LIKE CONCAT('%', #{keyword}, '%')
             </if>
@@ -25,7 +25,7 @@
     <select id="filterTasks" resultType="com.ikeu.model.entity.Task">
         SELECT * FROM task
         <where>
-            status = 1 AND expire_time > NOW() AND campus_id = #{campusId}
+            status = 1 AND reserved_runner_id IS NULL AND expire_time > NOW() AND campus_id = #{campusId}
             <if test="type != null and type != ''">
                 AND type = #{type}
             </if>

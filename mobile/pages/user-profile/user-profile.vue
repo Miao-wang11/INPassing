@@ -75,6 +75,11 @@
           </view>
           <iconpark-icon name="right" size="16" color="#D4D2CC" />
         </view>
+        <view class="func-item" @click="onMenuItem('offers')">
+          <view class="func-icon func-icon--blue"><iconpark-icon name="shop" size="22" color="#FF6B4A" /></view>
+          <text class="func-name">我的服务橱窗</text>
+          <iconpark-icon name="right" size="16" color="#D4D2CC" />
+        </view>
         <view class="func-item" @click="onMenuItem('address')">
           <view class="func-icon func-icon--blue"><iconpark-icon name="addressBook" size="22" color="#FF6B4A" /></view>
           <text class="func-name">收货地址管理</text>
@@ -143,6 +148,7 @@ function goMessages() { uni.switchTab({ url: '/pages/message/message' }) }
 function onMenuItem(key) {
   const routes = {
     bills: '/pages/bills/bills',
+    offers: '/pages-service/storefront/storefront',
     runner: '/pages/runner-cert/runner-cert',
     address: '/pages/address-list/address-list',
     privacy: '/pages/privacy-security/privacy-security',
