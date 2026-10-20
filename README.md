@@ -32,10 +32,22 @@
 
 **重要限制**：`productCost` 目前是**预估预算的模拟报销**，不是实际购物支出的核验金额。尚未实现小票审查、差额退回/补款、售后冻结及真钱交易；请勿当成真实资金托管平台部署使用。
 
+## 阶段 2：学校校区归属与任务隔离（已核验）
+
+- 新增学校、校区基础资料表；后台左侧 **学校校区** 菜单可以新增学校与所属校区。
+- 学生认证需要选择具体校区：`pending_campus_id` 只是申请，管理员在**审核管理**中核验后才写入正式 `campus_id`；任何人不能通过个人资料直接改变归属。
+- 发布任务时校区取自服务端认证信息，写入不可由用户请求指定的 `task.campus_id`。广场、搜索、筛选、附近任务、详情和抢单均由后端按**批准的校区**限制；Redis 广场缓存按校区分离。
+- [PR #4 代码](https://github.com/Miao-wang11/INPassing/pull/4) · [真实 Docker/MySQL 与跨校区交易测试（全部成功）](https://github.com/Miao-wang11/INPassing/actions/runs/39396275002) · [校区设计、升级与权限说明](docs/PHASE2_CAMPUS_SCOPE.md)。
+- 阶段验证含：两校区双向隔离、管理员新增学校校区、提交认证与管理员批准、阻止未批准或未绑定历史账号使用任务交易，以及前两批抢单和资金回归。
+
+**升级特别注意：如果已经用旧版本运行过，MySQL 卷内缺少新表与字段，必须先备份并执行 [增量迁移 SQL](backend/migrations/20261020_campus_scope.sql)，再启动新后端。绝不能在旧库上重跑 `backend/runningerrands.sql`（包含删库语句）。具体 PowerShell 步骤见 [运行手册](docs/RUNBOOK.md)。**
+
+未完成：真实校区信息审核验真、历史用户/任务人工归属迁移、校区停用和跨校区特殊授权、校园地点目录以及服务橱窗。现有订单和余额仍是模拟交易，不是生产资金系统。
+
 ## Windows 11 + Docker Desktop 快速运行（推荐）
 
 1. 安装 Git、Docker Desktop（Linux 容器模式，确保 `docker compose version` 正常），可选 IntelliJ IDEA 与 JDK 21。
-2. 从默认 main 分支克隆当前已验证的基础系统及阶段 2 第一批功能：
+2. 从默认 main 分支克隆已通过校园权限与交易 CI 的版本：
 
 ```powershell
 git clone https://github.com/Miao-wang11/INPassing.git
@@ -59,7 +71,7 @@ docker compose logs -f backend
    - 后端健康检查：<http://localhost:8080/api/actuator/health>
    - 本机 MySQL：`127.0.0.1:3308`；Redis：`127.0.0.1:6381`
    - 管理员：`ADMIN_USERNAME`（默认 admin）+ 你设置的 `ADMIN_PASSWORD`
-   - 开启演示种子时：`testuser / 123456` 与 `testuser2 / 123456`；模拟支付密码上游也是 `123456`
+   - 开启演示种子时：`testuser / 123456`、`testuser2 / 123456` 属于虚拟东校区（ID 10001）；`testuser3 / 123456` 属于虚拟西校区（ID 10002）。演示模拟支付密码为 `123456`
 
 请严格区分：**以上为已提交的启动说明，是否成功必须以你本地或 CI 的真实测试为准。**
 
@@ -92,4 +104,4 @@ npm run dev
 - [源项目作者 README（遵守署名）](docs/UPSTREAM_iRun_README.md)
 - 固定上游源码提交见 `docs/UPSTREAM_IRUN_COMMIT.txt`，后续更改均在本仓库保留 Git 记录。
 
-**分支策略**：`main` 提供已通过基础构建、容器启动与登录检查的阶段 1 底座；`integration/irun-bootstrap` 保留迁入历史。校园双向身份、资金结算、服务橱窗和争议处理等正式 V1 能力将在后续阶段独立验收。
+**分支策略**：`main` 提供 CI 已核验的阶段 1 底座及阶段 2 分批交付能力；`integration/irun-bootstrap` 保留迁入历史。服务橱窗、实际商品采购核对、售后争议处理等正式 V1 能力仍待后续开发与独立验收。
