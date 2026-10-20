@@ -35,6 +35,12 @@ const router = createRouter({
           meta: { title: '用户详情', hidden: true }
         },
         {
+          path: 'campuses',
+          name: 'Campuses',
+          component: () => import('@/views/campuses/CampusListView.vue'),
+          meta: { title: '学校校区', icon: 'School' }
+        },
+        {
           path: 'audit',
           name: 'Audit',
           component: () => import('@/views/audit/AuditView.vue'),
