@@ -201,6 +201,9 @@ public class AdminOrderServiceImpl implements AdminOrderService {
 
             OrderStateMachine.validate(order.getStatus(), status, "订单");
 
+            if (taskOrderMapper.updateStatusIf(orderId, order.getStatus(), status, "") != 1) {
+                throw new BusinessException(MessageConstant.ORDER_STATUS_CHANGED);
+            }
             LocalDateTime now = LocalDateTime.now();
             order.setStatus(status);
             if (status.equals(StatusConstant.ORDER_COMPLETED)) order.setConfirmTime(now);

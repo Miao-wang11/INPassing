@@ -566,6 +566,12 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
         }
 
         LocalDateTime now = LocalDateTime.now();
+        // SQL CAS is the authoritative guard. The Redis lock alone is not
+        // sufficient if it is released just before Spring commits a tx.
+        if (taskOrderMapper.updateStatusIf(orderId, StatusConstant.ORDER_WAIT_CONFIRM,
+                StatusConstant.ORDER_COMPLETED, "") != 1) {
+            throw new BusinessException(MessageConstant.ORDER_STATUS_CHANGED);
+        }
         order.setConfirmTime(now);
         order.setStatus(StatusConstant.ORDER_COMPLETED);
         updateById(order);
@@ -612,6 +618,10 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
         // Called by the auto-confirm scheduler while holding the SAME per-task
         // lock used by dispute applications and manual confirmation.
         orderDisputes.requireNoOpenCase(order.getId());
+        if (taskOrderMapper.updateStatusIf(order.getId(),StatusConstant.ORDER_WAIT_CONFIRM,
+                StatusConstant.ORDER_COMPLETED,"") != 1) {
+            throw new BusinessException(MessageConstant.ORDER_STATUS_CHANGED);
+        }
         order.setConfirmTime(LocalDateTime.now());
         order.setStatus(StatusConstant.ORDER_COMPLETED);
         taskOrderMapper.updateById(order);
