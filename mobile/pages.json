@@ -29,7 +29,8 @@
         { "path": "coffee-order/coffee-order", "style": { "navigationStyle": "custom", "navigationBarTitleText": "奶茶咖啡代取" } },
         { "path": "print-order/print-order", "style": { "navigationStyle": "custom", "navigationBarTitleText": "资料打印" } },
         { "path": "paper-express/paper-express", "style": { "navigationStyle": "custom", "navigationBarTitleText": "纸品速达" } },
-        { "path": "service-publish/service-publish", "style": { "navigationStyle": "custom", "navigationBarTitleText": "需求发布" } }
+        { "path": "service-publish/service-publish", "style": { "navigationStyle": "custom", "navigationBarTitleText": "需求发布" } },
+        { "path": "storefront/storefront", "style": { "navigationStyle": "custom", "navigationBarTitleText": "服务橱窗" } }
       ]
     },
     {
