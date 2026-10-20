@@ -11,6 +11,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.ikeu.common.constant.MessageConstant;
 import com.ikeu.common.constant.RedisConstant;
 import com.ikeu.common.constant.StatusConstant;
+import com.ikeu.common.money.TaskFeeBreakdown;
 import com.ikeu.common.constant.TaskTypeConstant;
 import com.ikeu.common.enums.TaskStateMachine;
 import com.ikeu.common.exception.BusinessException;
@@ -204,6 +205,11 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         BigDecimal deliveryFee = taskPublishDTO.getDeliveryFee() != null ? taskPublishDTO.getDeliveryFee() : BigDecimal.ZERO;
         BigDecimal productCost = taskPublishDTO.getProductCost() != null ? taskPublishDTO.getProductCost() : BigDecimal.ZERO;
         BigDecimal totalAmount = taskPublishDTO.getTip().add(deliveryFee).add(productCost);
+        try {
+            TaskFeeBreakdown.of(taskPublishDTO.getTip(), deliveryFee, productCost, totalAmount);
+        } catch (IllegalArgumentException ex) {
+            throw new ParamErrorException(MessageConstant.INVALID_FEE_BREAKDOWN);
+        }
 
         // 校验余额
         if (user.getBalance().compareTo(totalAmount) < 0) {

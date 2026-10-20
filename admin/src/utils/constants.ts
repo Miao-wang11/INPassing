@@ -78,7 +78,8 @@ export const TRANSACTION_TYPES: Record<number, string> = {
   2: '跑腿收入',
   3: '充值',
   4: '提现',
-  5: '退款'
+  5: '退款',
+  6: '采购预算报销'
 }
 
 export const NOTIFICATION_TYPES: Record<number, string> = {

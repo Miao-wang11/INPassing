@@ -566,11 +566,11 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
         runnerProfileMapper.decrementCurrentOrders(order.getRunnerId());
 
         // 向跑腿员支付报酬，幂等返回 false 时说明自动结算已处理，跳过统计更新
-        if (paymentService.payToRunner(order.getRunnerId(), order.getTaskId(), task.getReward())) {
+        if (paymentService.settleTask(order.getRunnerId(), task)) {
             // 原子更新跑腿员完成单数统计，防止与 OrderAutoCompleteChecker 并发重复计数
             runnerProfileMapper.incrementCompletedStats(order.getRunnerId());
         }
-        log.info("订单 {} 已完成，报酬 {} 元已支付给跑腿员", orderId, task.getReward());
+        log.info("订单 {} 已完成，服务费和采购预算已分项结算，总额 {}", orderId, task.getReward());
 
         // 任务完成影响排行榜和仪表盘，清除相关缓存
         Objects.requireNonNull(cacheManager.getCache(RedisConstant.CACHE_LEADERBOARD)).clear();
@@ -602,7 +602,7 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
 
         runnerProfileMapper.decrementCurrentOrders(order.getRunnerId());
 
-        if (paymentService.payToRunner(order.getRunnerId(), order.getTaskId(), task.getReward())) {
+        if (paymentService.settleTask(order.getRunnerId(), task)) {
             runnerProfileMapper.incrementCompletedStats(order.getRunnerId());
         }
 
@@ -613,7 +613,7 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
                 StatusConstant.NOTICE_ORDER, "订单已自动完成",
                 "您配送的任务 " + task.getTaskNo() + " 已自动确认完成", order.getId());
 
-        log.info("订单 {} {}h自动结算完成，报酬 {} 支付给跑腿员 {}", order.getId(), autoConfirmHours, task.getReward(), order.getRunnerId());
+        log.info("订单 {} {}h自动模拟结算完成，预付总额 {} 转入接单者 {}", order.getId(), autoConfirmHours, task.getReward(), order.getRunnerId());
     }
 
     /**
