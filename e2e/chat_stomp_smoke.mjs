@@ -118,6 +118,8 @@ async function main() {
         receiverId: bob.id, content, messageType: 1
       }));
     console.log('DIAG sockets connected', a.inbox.length, b.inbox.length, c.inbox.length);
+    console.log('DIAG connected inbox', JSON.stringify(a.inbox), JSON.stringify(b.inbox));
+    console.log('DIAG delivery database precheck', sql("SELECT COUNT(*) FROM chat_message WHERE content='CI_STOMP_PRIVATE_CHAT_20261020'"));
     const received = await b.wait(p => p.command === 'MESSAGE' && p.body.includes(content));
     const message = JSON.parse(received.body);
     assert.equal(Number(message.senderId), alice.id);
