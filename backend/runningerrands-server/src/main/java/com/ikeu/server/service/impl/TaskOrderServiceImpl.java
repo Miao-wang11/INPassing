@@ -27,6 +27,7 @@ import com.ikeu.server.mapper.*;
 import com.ikeu.server.service.NotificationService;
 import com.ikeu.server.service.PaymentService;
 import com.ikeu.server.service.TaskOrderService;
+import com.ikeu.server.service.CampusCatalogService;
 import com.ikeu.server.service.StudentAcceptanceProfileService;
 import com.ikeu.server.util.RedisDefendUtil;
 
@@ -59,6 +60,7 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
 
     private final TaskOrderMapper taskOrderMapper;
     private final TaskMapper taskMapper;
+    private final CampusCatalogService campusCatalogService;
     private final UserMapper userMapper;
     private final RunnerProfileMapper runnerProfileMapper;
     private final StudentAcceptanceProfileService studentAcceptanceProfileService;
@@ -154,6 +156,7 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
         // 1. 获取任务，校验任务状态
         Task task = taskMapper.selectById(taskId);
         if (task == null) throw new BusinessException(MessageConstant.TASK_NOT_EXIST);
+        campusCatalogService.requireSameCampus(task, runnerId);
         if (!Objects.equals(task.getStatus(), StatusConstant.TASK_WAITING)) {
             throw new BusinessException(MessageConstant.ORDER_ACCEPTED_FAIL);
         }
@@ -204,6 +207,7 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
             if (latestTask == null) {
                 throw new BusinessException(MessageConstant.TASK_NOT_EXIST);
             }
+            campusCatalogService.requireSameCampus(latestTask, runnerId);
             if (Objects.equals(latestTask.getStatus(), StatusConstant.TASK_CANCELLED)) {
                 // 场景：锁等待期间任务被发布者取消/管理员取消/超时自动取消
                 throw new BusinessException(MessageConstant.TASK_ALREADY_CANCELLED);

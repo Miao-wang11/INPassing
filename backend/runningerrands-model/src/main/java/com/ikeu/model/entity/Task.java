@@ -37,6 +37,10 @@ public class Task implements Serializable {
     @TableField("task_no")
     private String taskNo;
 
+    /** Immutable campus chosen from the publisher's ADMIN-APPROVED membership. */
+    @TableField("campus_id")
+    private Long campusId;
+
     /** 发布者ID，关联user表的id */
     @TableField("publisher_id")
     private Long publisherId;
