@@ -1,11 +1,11 @@
 # 顺手（ShunShou）校园互助交易平台
 
-> **开发集成分支 / 阶段 1**：基于 [iRun](https://github.com/Ikeu-1030/iRun) 的 MIT 许可源码进行正式二次开发。尚未完成顺手 V1.0 全部需求，不应当作已上线产品或校招简历中已经完成的全部功能。
+> **阶段 1：已通过远程构建与容器冒烟测试的底座**：基于 [iRun](https://github.com/Ikeu-1030/iRun) 的 MIT 许可源码进行正式二次开发。尚未完成顺手 V1.0 全部需求，不应当作已上线产品或校招简历中已经完成的全部功能。
 
 ## 当前仓库状态
 
 - 原始底座源码已迁入：Spring Boot 3 / Java 21 后端、Vue 3 管理端、uni-app 移动端、MySQL SQL、Redis 与 Docker 配置。
-- GitHub Actions 已证明底座 Maven 打包、管理后台 npm 构建能够成功；完整容器联调与顺手业务开发另外分阶段验收。
+- GitHub Actions 已证明 Maven 打包、隐私回归测试、管理后台 npm 构建、完整 Docker 四容器启动、后端健康接口、Nginx 管理页面，以及管理员/演示学生登录检查通过。其他顺手功能仍需分阶段验收。
 - 任务详情权限相关的跨用户缓存风险已修补，回归测试与 Docker 部署改造正在持续验收。
 - 系统目前仍带有上游 iRun 的业务规则及外观，**不是顺手最终版本**。
 - 支付是本地数据库记录和模拟余额，不接真实微信或支付宝，也不可当真实货币系统使用。
@@ -13,10 +13,10 @@
 ## Windows 11 + Docker Desktop 快速运行（推荐）
 
 1. 安装 Git、Docker Desktop（Linux 容器模式，确保 `docker compose version` 正常），可选 IntelliJ IDEA 与 JDK 21。
-2. 克隆**当前集成分支**，不是 main：
+2. 从默认 main 分支克隆当前已验证的阶段 1 底座：
 
 ```powershell
-git clone -b integration/irun-bootstrap https://github.com/Miao-wang11/INPassing.git
+git clone https://github.com/Miao-wang11/INPassing.git
 cd INPassing\docker
 Copy-Item .env.example .env
 notepad .env

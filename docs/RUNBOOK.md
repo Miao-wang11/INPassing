@@ -11,7 +11,7 @@
 ## B. 从零克隆后运行
 
 ```powershell
-git clone -b integration/irun-bootstrap https://github.com/Miao-wang11/INPassing.git
+git clone https://github.com/Miao-wang11/INPassing.git
 cd INPassing\docker
 Copy-Item .env.example .env
 notepad .env
