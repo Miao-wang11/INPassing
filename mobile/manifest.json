@@ -1,0 +1,49 @@
+{
+    "name" : "小i跑腿",
+    "appid" : "__UNI__FD25461",
+    "description" : "小i跑腿 - 高校跑腿服务应用",
+    "versionName" : "1.0.0",
+    "versionCode" : "100",
+    "transformPx" : false,
+    "app-plus" : {
+        "usingComponents" : true,
+        "nvueStyleCompiler" : "uni-app",
+        "compilerVersion" : 3,
+        "splashscreen" : {
+            "alwaysShowBeforeRender" : true,
+            "waiting" : true,
+            "autoclose" : true,
+            "delay" : 0
+        },
+        "modules" : {},
+        "distribute" : {
+            "android" : {
+                "permissions" : []
+            },
+            "ios" : {}
+        }
+    },
+    "mp-weixin" : {
+        "appid" : "wx74e8fde7ac88fce7",
+        "setting" : {
+            "urlCheck" : false
+        },
+        "usingComponents" : true,
+        "optimization" : {
+            "subPackages" : true
+        },
+        "permission" : {
+            "scope.userLocation" : {
+                "desc" : "需要获取您的位置信息以提供配送服务"
+            }
+        }
+    },
+    "h5" : {
+        "router" : {
+            "mode" : "hash",
+            "base" : ""
+        }
+    },
+    "vueVersion" : "3",
+    "locale" : "auto"
+}

@@ -1,0 +1,74 @@
+/* ===== 订单详情页共享卡片样式 ===== */
+
+/* 信息卡片 */
+.info-card{background:var(--surface-raised);border-radius:var(--radius-card);padding:28rpx;margin-top:20rpx;box-shadow:var(--shadow-sm)}
+/* 任务类型视觉区分 - 左边框 */
+.info-card--type-1{border-left:6rpx solid var(--primary)}          /* 代取快递 */
+.info-card--type-2{border-left:6rpx solid #f59e0b}                /* 代拿餐食 */
+.info-card--type-3{border-left:6rpx solid var(--success)}          /* 校内代办 */
+.info-card--type-4{border-left:6rpx solid var(--accent)}           /* 代购物品 */
+
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16rpx;padding-bottom:16rpx;border-bottom:1rpx solid var(--surface-hover)}
+.card-title{display:flex;align-items:center;gap:10rpx;font-size:28rpx;font-weight:600;color:var(--text-primary);margin-bottom:20rpx;padding-bottom:16rpx;border-bottom:1rpx solid var(--surface-hover)}
+.type-badge{display:flex;align-items:center;gap:8rpx;padding:8rpx 18rpx;border-radius:20rpx;font-size:24rpx;font-weight:500}
+.type-badge--blue{background:var(--primary-container);color:#FF6B4A}
+.type-badge--orange{background:#fff7ed;color:#ad6200}
+.type-badge--green{background:#f0fdf4;color:#166534}
+.type-badge--teal{background:#ecfeff;color:#0e7490}
+.order-no{font-size:22rpx;color:var(--text-tertiary)}
+.order-no-row{display:flex;align-items:center;gap:8rpx}
+.copy-btn{width:44rpx;height:44rpx;border-radius:50%;background:var(--primary-container);display:flex;align-items:center;justify-content:center}
+.copy-btn:active{background:#FFD1C7}
+.card-row{display:flex;justify-content:space-between;align-items:flex-start;padding:12rpx 0}
+.card-row--price{background:var(--surface);border-radius:14rpx;padding:18rpx 20rpx;margin-top:4rpx}
+.row-label{font-size:26rpx;color:var(--text-secondary);flex-shrink:0;min-width:140rpx}
+.row-value{font-size:26rpx;font-weight:500;color:var(--text-primary);text-align:right;flex:1}
+.row-value--price{font-size:34rpx;font-weight:700;color:var(--primary)}
+.row-value--code{font-size:30rpx;font-weight:700;color:var(--warning);letter-spacing:2rpx}
+.row-value--phone{font-size:26rpx;font-weight:500;color:var(--primary);letter-spacing:2rpx}
+.row-value--masked{font-size:26rpx;color:var(--text-tertiary);letter-spacing:4rpx}
+.desc-text{font-size:26rpx;color:var(--text-primary);line-height:1.6;white-space:pre-wrap}
+.desc-hidden{display:flex;align-items:center;gap:10rpx;padding:20rpx;background:var(--surface);border-radius:14rpx}
+.desc-hidden text{font-size:24rpx;color:var(--text-tertiary)}
+.package-tags{display:flex;flex-wrap:wrap;gap:10rpx;margin-bottom:14rpx}
+.package-tag{font-size:22rpx;padding:6rpx 16rpx;background:var(--primary-container);color:var(--primary);border-radius:8rpx}
+
+/* 图片 */
+.proof-images{display:flex;gap:12rpx;flex-wrap:wrap}
+.proof-img{width:120rpx;height:120rpx;border-radius:14rpx;object-fit:cover}
+
+/* 联系人卡片 */
+.contact-card{display:flex;align-items:center;gap:18rpx;background:var(--surface-raised);border-radius:var(--radius-card);padding:24rpx 28rpx;margin-top:20rpx;box-shadow:var(--shadow-sm)}
+.contact-avatar{width:80rpx;height:80rpx;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:34rpx;font-weight:700;color:#fff;flex-shrink:0}
+.contact-avatar-img{width:80rpx;height:80rpx;border-radius:50%;object-fit:cover;flex-shrink:0}
+.contact-info{flex:1}
+.contact-name{font-size:28rpx;font-weight:600;color:var(--text-primary);display:block}
+.contact-role{font-size:22rpx;color:var(--text-secondary);margin-top:2rpx;display:block}
+.contact-phone{font-size:24rpx;color:var(--text-tertiary);margin-top:4rpx;display:block}
+.contact-actions{display:flex;gap:12rpx}
+.c-action{display:flex;align-items:center;gap:6rpx;padding:12rpx 20rpx;border-radius:var(--radius-card);background:var(--surface)}
+.c-action text{font-size:24rpx;font-weight:500;color:var(--primary)}
+.c-action--call{background:var(--primary)}
+.c-action--call text{color:#fff}
+
+/* 路线标记 */
+.route-badge{width:40rpx;height:40rpx;border-radius:10rpx;display:inline-flex;align-items:center;justify-content:center;font-size:22rpx;font-weight:700;color:#fff;flex-shrink:0;margin-right:8rpx}
+.route-badge--from{background:#1C1B1A}
+.route-badge--to{background:var(--primary)}
+
+/* 取消按钮 */
+.cancel-btn{display:flex;justify-content:center;padding:24rpx;border:1rpx solid var(--error);border-radius:48rpx;margin:28rpx auto 0;width:fit-content;min-width:240rpx}
+.cancel-btn text{font-size:28rpx;font-weight:600;color:var(--error)}
+.cancel-btn:active{background:var(--error-container)}
+.cancel-btn--disabled{pointer-events:none;opacity:.5}
+
+/* 时间线/详情 */
+.detail-items{margin-top:8rpx}
+.detail-item{display:flex;justify-content:space-between;padding:16rpx 0;font-size:26rpx;color:var(--text-secondary);border-bottom:1rpx solid var(--surface)}
+.detail-item:last-child{border-bottom:none}
+.detail-item--total{border-top:1rpx solid var(--outline-light);margin-top:8rpx;padding-top:18rpx}
+.detail-value{font-weight:500;color:var(--text-primary)}
+.detail-value--total{font-weight:600}
+
+.bottom-placeholder{height:120rpx}
+:deep(.uni-card){border-radius:var(--radius-card)!important}

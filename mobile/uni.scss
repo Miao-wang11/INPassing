@@ -1,0 +1,47 @@
+/* uni-app 内置样式变量 — 暖珊瑚+青绿 */
+
+/* 颜色变量 */
+$uni-color-primary: var(--primary, #FF6B4A);
+$uni-color-success: var(--success, #34D399);
+$uni-color-warning: var(--warning, #F59E0B);
+$uni-color-error: var(--error, #EF4444);
+
+/* 文字颜色 */
+$uni-text-color: var(--text-primary, #1C1B1A);
+$uni-text-color-inverse: var(--text-inverse, #FFFFFF);
+$uni-text-color-grey: var(--text-tertiary, #8F8D88);
+$uni-text-color-placeholder: var(--text-tertiary, #8F8D88);
+$uni-text-color-disable: var(--outline, #D4D2CC);
+
+/* 背景颜色 */
+$uni-bg-color: var(--surface-raised, #FFFFFF);
+$uni-bg-color-grey: var(--background, #FAFAF8);
+$uni-bg-color-hover: var(--surface-hover, #EEEDE8);
+$uni-bg-color-mask: rgba(28, 27, 26, 0.45);
+
+/* 边框颜色 */
+$uni-border-color: var(--outline, #D4D2CC);
+
+/* 尺寸变量 */
+$uni-font-size-sm: var(--text-sm, 24rpx);
+$uni-font-size-base: var(--text-base, 34rpx);
+$uni-font-size-lg: var(--text-lg, 36rpx);
+
+$uni-img-size-sm: 40rpx;
+$uni-img-size-base: 52rpx;
+$uni-img-size-lg: 80rpx;
+
+$uni-border-radius-sm: var(--radius-sm, 10rpx);
+$uni-border-radius-base: var(--radius-md, 22rpx);
+$uni-border-radius-lg: var(--radius-lg, 36rpx);
+$uni-border-radius-circle: 50%;
+
+$uni-spacing-row-sm: var(--space-2, 16rpx);
+$uni-spacing-row-base: var(--space-3, 24rpx);
+$uni-spacing-row-lg: var(--space-5, 40rpx);
+
+$uni-spacing-col-sm: var(--space-2, 16rpx);
+$uni-spacing-col-base: var(--space-4, 32rpx);
+$uni-spacing-col-lg: var(--space-6, 48rpx);
+
+$uni-opacity-disabled: 0.38;

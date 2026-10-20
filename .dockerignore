@@ -1,0 +1,11 @@
+.git
+.github
+**/.claude
+**/node_modules
+**/target
+admin/dist
+**/.env
+**/.env.*
+!docker/.env.example
+**/*.log
+**/.DS_Store

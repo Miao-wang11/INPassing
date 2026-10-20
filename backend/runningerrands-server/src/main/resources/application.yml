@@ -1,0 +1,77 @@
+server:
+  port: 8080
+  servlet:
+    # 设置接口路径前缀
+    context-path: /api
+
+# Spring 公共配置
+spring:
+  profiles:
+    active: dev
+  application:
+    name: runningerrands-server
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 20MB
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
+
+
+# MyBatis-Plus 配置
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.ikeu.model.entity
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: isDeleted   # 全局逻辑删除字段名
+      logic-delete-value: 1           # 已删除
+      logic-not-delete-value: 0       # 未删除
+
+# 日志级别
+logging:
+  level:
+    com.ikeu: DEBUG
+
+# 项目配置
+runningerrands:
+  admin:
+    init:
+      username: ${RUNNING_ERRANDS_ADMIN_USERNAME:admin}
+      password: ${RUNNING_ERRANDS_ADMIN_PASSWORD:admin}
+      name: ${RUNNING_ERRANDS_ADMIN_NAME:系统管理员}
+
+  jwt:
+    admin-secret-key: ${RUNNING_ERRANDS_JWT_ADMIN_SECRET:}
+    admin-access-ttl: 7200000
+    admin-refresh-ttl: 604800000
+    admin-token-name: token
+    user-secret-key: ${RUNNING_ERRANDS_JWT_USER_SECRET:}
+    user-access-ttl: 7200000
+    user-refresh-ttl: 604800000
+    user-token-name: authentication
+
+  alioss:
+    access-key-id: ${ALIYUN_ACCESS_KEY_ID:}
+    access-key-secret: ${ALIYUN_ACCESS_KEY_SECRET:}
+    # endpoint 和 bucket-name 请在 application-dev/test/prod.yml 等具体环境中配置
+
+  wechat:
+    app-id: ${WECHAT_APP_ID:}
+    app-secret: ${WECHAT_APP_SECRET:}
+
+  map:
+    provider: tencent
+    api-key: ${TENCENT_MAP_API_KEY:}
+    geocode-url: https://apis.map.qq.com/ws/geocoder/v1
+    reGeocode-url: https://apis.map.qq.com/ws/geocoder/v1
+    distance-url: https://apis.map.qq.com/ws/distance/v1/matrix
+    default-radius-Km: 5.0
+    coordinate-system: gcj02

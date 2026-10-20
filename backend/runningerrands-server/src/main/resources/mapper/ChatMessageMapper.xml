@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ikeu.server.mapper.ChatMessageMapper">
+
+    <select id="selectHistory" resultType="com.ikeu.model.entity.ChatMessage">
+        SELECT * FROM chat_message
+        WHERE is_deleted = 0
+          AND ((sender_id = #{userId} AND receiver_id = #{targetUserId})
+               OR (sender_id = #{targetUserId} AND receiver_id = #{userId}))
+        ORDER BY created_at DESC
+    </select>
+
+</mapper>

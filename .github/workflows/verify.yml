@@ -1,0 +1,99 @@
+name: Verify ShunShou baseline
+on:
+  push:
+    branches:
+      - integration/irun-bootstrap
+      - main
+    paths:
+      - backend/**
+      - admin/**
+      - docker/**
+      - Dockerfile
+      - .dockerignore
+      - .github/workflows/verify.yml
+  pull_request:
+    branches:
+      - main
+permissions:
+  contents: read
+env:
+  MYSQL_ROOT_PASSWORD: ci-example-mysql-password
+  JWT_ADMIN_SECRET: ci-admin-jwt-secret-is-long-enough-123456
+  JWT_USER_SECRET: ci-user-jwt-secret-is-long-enough-1234567
+  ADMIN_PASSWORD: ci-admin-password-not-for-production
+  SHUNSHOU_DEMO_SEED: "true"
+jobs:
+  backend-compile-and-privacy-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/**/pom.xml
+      - name: Build backend modules
+        working-directory: backend
+        run: mvn -B -ntp -DskipTests package
+      - name: Regression test for cross-user task details
+        working-directory: backend
+        run: mvn -B -ntp -pl runningerrands-server -am -Dtest=TaskDetailPrivacyTest -Dsurefire.failIfNoSpecifiedTests=false test
+
+  admin-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+      - name: Install and build admin
+        working-directory: admin
+        run: |
+          npm ci
+          npm run build
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate and start full stack
+        run: |
+          set -euo pipefail
+          docker compose -f docker/docker-compose.yml config -q
+          docker compose -f docker/docker-compose.yml up --build -d
+      - name: Confirm backend is ready
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 90); do
+            if curl --silent --fail --show-error --max-time 3 http://localhost:8080/api/actuator/health; then
+              echo "Backend is healthy"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "Backend health timed out" >&2
+          exit 1
+      - name: Confirm Nginx proxies admin
+        run: |
+          set -euo pipefail
+          curl -fsSL http://localhost/api/ -o /tmp/admin-smoke.html
+          grep -q '<html' /tmp/admin-smoke.html
+          curl -fsS http://localhost/api/actuator/health
+      - name: Verify admin and demo student sign in
+        run: |
+          set -euo pipefail
+          admin_json=$(curl -fsS --retry 5 --retry-delay 2 -X POST http://localhost:8080/api/admin/login -H 'Content-Type: application/json' --data "{\"username\":\"admin\",\"password\":\"$ADMIN_PASSWORD\"}")
+          printf '%s' "$admin_json" | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data.get("code")==1 and data.get("data",{}).get("token"), "admin login failed"'
+          student_json=$(curl -fsS --retry 5 --retry-delay 2 -X POST http://localhost:8080/api/user/login -H 'Content-Type: application/json' --data '{"loginType":1,"username":"testuser","password":"123456"}')
+          printf '%s' "$student_json" | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data.get("code")==1, "demo student login failed"'
+          echo "Admin and student login smoke checks passed"
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose -f docker/docker-compose.yml logs --tail=150
+      - name: Stop and remove ephemeral services
+        if: always()
+        run: docker compose -f docker/docker-compose.yml down -v
