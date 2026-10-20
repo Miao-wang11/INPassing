@@ -24,13 +24,21 @@ def main():
         "loginType":1, "username":"ci_fee_runner", "password":"123456"
     }), "accounting worker login")["token"]
 
+    ok(api("POST","/user/address/save",{
+        "contactName":"CI 同学","contactPhone":"13800000002",
+        "detail":"CI 测试宿舍 1001","sex":"男","isDefault":1
+    },publisher),"save publisher address")
+    addresses=ok(api("GET","/user/address/list",token=publisher),"list addresses")
+    assert isinstance(addresses,list) and addresses and addresses[0].get("id"), addresses
+    address_id=addresses[0]["id"]
+
     def publish(tip="2.50",delivery="1.00",goods="6.40"):
         return ok(api("POST", "/task/publish", {
             "type":"代购物品", "subType":"校内代购",
             "publicDesc":"CI 模拟商品采购费用分账测试",
             "tip":tip, "deliveryFee":delivery, "productCost":goods,
-            "pickupAddress":"校园超市", "contactName":"CI 需求方",
-            "contactPhone":"13800000002", "expireMinutes":30,
+            "pickupAddress":"校园超市","deliveryAddressId":address_id,
+            "expireMinutes":30,
             "payPassword":"123456"
         }, publisher), "task publish")["taskId"]
 
