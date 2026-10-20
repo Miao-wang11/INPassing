@@ -5,6 +5,7 @@ Executed in an EPHEMERAL docker-compose CI with SHUNSHOU_DEMO_SEED=true only.
 Every API operation uses the public HTTP interface and authenticated JWT.
 """
 import json
+import concurrent.futures
 import os
 import subprocess
 import urllib.error
@@ -92,6 +93,30 @@ def main():
     assert banned.get("code") != 1, "Banned student must remain banned"
     row = sql(f"SELECT is_banned,credit_score FROM runner_profile WHERE user_id={int(worker_id)}")
     assert row == "1\t45", f"An existing restriction was overridden: {row!r}"
+    # Same task, multiple independently certified students, concurrent POSTs.
+    # This verifies correctness (one winner), NOT throughput performance.
+    racers = []
+    for n in range(4):
+        username = f"ci_runner_{n}"
+        sql("INSERT INTO user (username,password,pay_password,nickname,status,is_certify,balance) "
+            f"SELECT '{username}',password,pay_password,'CI Racer',1,2,100 "
+            "FROM user WHERE username='testuser2'")
+        racers.append(ok(api("POST", "/user/login", {
+            "loginType": 1, "username": username, "password": "123456"
+        }), f"race login {username}")["token"])
+    race_task = publish()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=12) as pool:
+        outcomes = list(pool.map(
+            lambda tok: api("POST", f"/order/accept/{race_task}", token=tok),
+            racers * 5
+        ))
+    winners = [x for x in outcomes if x.get("code") == 1]
+    assert len(winners) == 1, f"Expected exactly one concurrent winner; got {len(winners)}"
+    active = sql(f"SELECT COUNT(*) FROM task_order WHERE task_id={int(race_task)} AND status<>5")
+    assert active == "1", f"Concurrent task has {active} active orders (expected 1)"
+    print("PASS: 20 concurrent accept requests from 4 users, exactly one winner")
+
     print("PASS: certified student publishes; other certified student accepts")
     print("PASS: fresh profile created atomically without separate runner application")
     print("PASS: self-accept, duplicate accept and banned student rejected")
