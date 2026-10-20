@@ -78,6 +78,20 @@ docker compose ps
 
 升级只新增 `order_dispute` 和 `dispute_event`，不清除历史订单、资金流水、旧用户。管理员进入“售后纠纷”，只有超级管理员能进行真实仲裁按钮操作；对于以前已结算或已取消的订单，必须按历史账务单独核查，不能在这套未结算模拟退款流程里直接追回钱。
 
+## B2.3. 阶段 5 模拟资金对账索引升级（旧库）
+
+先完成阶段 2/3/4 迁移，暂停业务并做可恢复备份。新数据库首次初始化时已有该索引，不能重复运行。
+
+在 docker 目录的 PowerShell 运行：
+
+```powershell
+Get-Content -Raw ..\backend\migrations\20261020_operations_indexes.sql |
+  docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot runningerrands'
+docker compose up -d --build
+```
+
+此处只新建 transaction_record(task_id,type) 查询索引，不更新钱包余额。后台“资金对账”页面提供只读异常扫描；对异常需人工核实账务，不自动修正。
+
 ## B3. 首次运营配置
 
 非演示环境 `SHUNSHOU_DEMO_SEED=false` 不会生成虚构学校。请以超级管理员登录后台，在左侧 **学校校区** 页面先添加学校，再添加对应校区。随后学生在认证页面选择学校/校区，审核人员在 **审核管理** 页面确认申请校区后通过；获批校区才可发布或接取本校区任务。已有学号/院系文本不能直接证明校区归属。

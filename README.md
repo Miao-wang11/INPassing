@@ -1,6 +1,6 @@
 # 顺手（ShunShou）校园互助交易平台
 
-> **阶段 1 可运行底座 + 阶段 2 双向学生身份和模拟资金分项结算**：基于 [iRun](https://github.com/Ikeu-1030/iRun) 的 MIT 许可源码进行正式二次开发。尚未完成顺手 V1.0 全部需求，不应当作已上线产品或校招简历中已经完成的全部功能。
+> **已有分阶段核验的交易核心能力，但尚未达到完整 V1 验收**：基于 [iRun](https://github.com/Ikeu-1030/iRun) 的 MIT 许可源码进行正式二次开发。尚未完成顺手 V1.0 全部需求，不应当作已上线产品或校招简历中已经完成的全部功能。
 
 ## 当前仓库状态
 
@@ -68,6 +68,14 @@
 - **升级旧库要先备份**，校区和服务橱窗两份迁移完成之后，额外执行 `backend/migrations/20261020_order_dispute.sql`，严禁直接重跑 `backend/runningerrands.sql`。
 
 **业务边界**：本批只支持尚未结算订单的模拟全额退款，不支持真实资金、已结算后追回、部分赔偿或凭证文件安全托管。
+
+## 阶段 5：售后运营与模拟资金流水对账
+
+管理后台“资金对账”展示真实售后待办、退款处理数量和已记入模拟钱包的退款金额，并支持按任务核对预付/退款/服务结算/采购报销是否符合状态规则。查出异常只报告，不直接修改用户余额。
+
+新索引文件：backend/migrations/20261020_operations_indexes.sql。已有库备份后执行一次；新库已经包括，不重复操作。
+
+[源码 PR #8](https://github.com/Miao-wang11/INPassing/pull/8) · [对账说明](docs/PHASE5_OPERATIONS_RECONCILIATION.md) · [简历可验证事实](docs/RESUME_VERIFIED_FACTS.md) · [验收矩阵](docs/RELEASE_ACCEPTANCE_MATRIX.md)
 
 ## Windows 11 + Docker Desktop 快速运行（推荐）
 
