@@ -1,0 +1,50 @@
+name: Verify ShunShou baseline
+on:
+  push:
+    branches:
+      - integration/irun-bootstrap
+      - main
+    paths:
+      - backend/**
+      - admin/**
+      - docker/**
+      - .github/workflows/verify.yml
+  pull_request:
+    branches:
+      - main
+permissions:
+  contents: read
+jobs:
+  backend-compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/**/pom.xml
+      - name: Build backend modules
+        working-directory: backend
+        run: mvn -B -ntp -DskipTests package
+  admin-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+      - name: Install and build admin
+        working-directory: admin
+        run: |
+          npm ci
+          npm run build
+  compose-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate compose syntax
+        run: docker compose -f docker/docker-compose.yml config -q
