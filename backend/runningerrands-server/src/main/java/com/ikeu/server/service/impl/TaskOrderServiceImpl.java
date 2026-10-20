@@ -26,6 +26,7 @@ import com.ikeu.server.annotation.SendNotification;
 import com.ikeu.server.mapper.*;
 import com.ikeu.server.service.NotificationService;
 import com.ikeu.server.service.PaymentService;
+import com.ikeu.server.service.OrderDisputeService;
 import com.ikeu.server.service.TaskOrderService;
 import com.ikeu.server.service.CampusCatalogService;
 import com.ikeu.server.service.StudentAcceptanceProfileService;
@@ -61,6 +62,7 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
     private final TaskOrderMapper taskOrderMapper;
     private final TaskMapper taskMapper;
     private final CampusCatalogService campusCatalogService;
+    private final OrderDisputeService orderDisputes;
     private final UserMapper userMapper;
     private final RunnerProfileMapper runnerProfileMapper;
     private final StudentAcceptanceProfileService studentAcceptanceProfileService;
@@ -555,6 +557,7 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
             // 锁内重查，防止状态已被自动结算修改
             order = getById(orderId);
             if (order == null) throw new NotFoundException(MessageConstant.ORDER_NOT_EXIST);
+            orderDisputes.requireNoOpenCase(orderId);
             OrderStateMachine.validate(order.getStatus(), StatusConstant.ORDER_COMPLETED, "Order");
         Task task = taskMapper.selectById(order.getTaskId());
         if (task == null) throw new NotFoundException(MessageConstant.TASK_NOT_EXIST);
@@ -606,6 +609,9 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
     @Override
     @Transactional
     public void autoCompleteOrder(TaskOrder order, Task task, int autoConfirmHours) {
+        // Called by the auto-confirm scheduler while holding the SAME per-task
+        // lock used by dispute applications and manual confirmation.
+        orderDisputes.requireNoOpenCase(order.getId());
         order.setConfirmTime(LocalDateTime.now());
         order.setStatus(StatusConstant.ORDER_COMPLETED);
         taskOrderMapper.updateById(order);
