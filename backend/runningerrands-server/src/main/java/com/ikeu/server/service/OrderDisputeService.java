@@ -90,9 +90,11 @@ public class OrderDisputeService {
     }
 
     public boolean isOpen(Long orderId) {
-        Integer count=jdbc.queryForObject("SELECT COUNT(*) FROM order_dispute WHERE order_id=? AND status=1",
-                Integer.class,orderId);
-        return count!=null && count>0;
+        // Locking/current read avoids the REPEATABLE_READ snapshot established
+        // before a competing dispute transaction acquired the task lock.
+        List<Integer> states=jdbc.query("SELECT status FROM order_dispute WHERE order_id=? FOR UPDATE",
+                (rs,i)->rs.getInt(1),orderId);
+        return !states.isEmpty() && states.get(0)==1;
     }
     public void requireNoOpenCase(Long orderId) {
         if(isOpen(orderId))throw new BusinessException("该订单存在未处理的售后争议，暂不能确认完成或强制结算");
@@ -134,6 +136,13 @@ public class OrderDisputeService {
             if(!Objects.equals(userId,task.getPublisherId())
                     && !Objects.equals(userId,latest.getRunnerId())) {
                 throw new ForbiddenException("只有当前交易双方可以申请售后");
+            }
+            // Current-read the underlying order row under the same lock.
+            // This waits for any previous completion transaction to commit.
+            Integer committedStatus=jdbc.queryForObject(
+                    "SELECT status FROM task_order WHERE id=? FOR UPDATE",Integer.class,orderId);
+            if(!Objects.equals(committedStatus,StatusConstant.ORDER_WAIT_CONFIRM)) {
+                throw new BusinessException("订单已结算或取消，不允许发起争议");
             }
             List<CaseView> old=jdbc.query(FIELDS+"WHERE order_id=?",OrderDisputeService::map,orderId);
             if(!old.isEmpty())return old.get(0);
