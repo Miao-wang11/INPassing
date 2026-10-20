@@ -459,27 +459,18 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
      * @return TaskDetailVO 任务详情VO
      */
     @Override
-    @RedisDefend
     public TaskDetailVO getTaskDetail(Long taskId, Long currentUserId) {
-        String cacheKey = String.valueOf(taskId);
-        Cache cache = cacheManager.getCache(RedisConstant.CACHE_TASK_DETAIL);
-
-        TaskDetailVO vo = redisDefendUtil.getOrLoad(
-                cache, cacheKey,
-                RedisConstant.TASK_NOT_EXIST_PREFIX + taskId, RedisConstant.TASK_NOT_EXIST_TTL,
-                RedisConstant.TASK_DETAIL_LOCK_PREFIX + taskId,
-                (long) RedisConstant.LOCK_WAIT_TIME, (long) RedisConstant.LOCK_EXPIRE,
-                TaskDetailVO.class,
-                () -> {
-                    Task task = getById(taskId);
-                    if (task == null) return null;
-                    return buildTaskDetailVO(task, currentUserId);
-                }
-        );
-
-        if (vo == null) {
+        // The response contains caller-specific authorization and privacy fields.
+        // Caching a caller-personalized VO by taskId can disclose pickup codes and
+        // private notes if the publisher warms the cache first.
+        // Fetch the task from the database, derive viewer permissions freshly for
+        // every request, and only then apply public-field masking.
+        // A future cache may store ONLY a strictly public, viewer-independent DTO.
+        Task task = taskMapper.selectById(taskId);
+        if (task == null) {
             throw new BusinessException(MessageConstant.TASK_NOT_EXIST);
         }
+        TaskDetailVO vo = buildTaskDetailVO(task, currentUserId);
         applyTaskDetailMasking(vo);
         return vo;
     }
