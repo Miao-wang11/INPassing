@@ -2,6 +2,7 @@ package com.ikeu.server.aspect;
 
 import com.ikeu.server.service.CreditService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.annotation.AfterReturning;
 import org.aspectj.lang.annotation.Aspect;
 import org.springframework.core.Ordered;
@@ -15,6 +16,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * @author ikeu
  * @since 2026/05/14
  */
+@Slf4j
 @Aspect
 @Component
 @Order(Ordered.LOWEST_PRECEDENCE - 1)
@@ -40,12 +42,34 @@ public class CreditScoreAspect {
      */
     @AfterReturning("execution(* com.ikeu.server.service.TaskOrderService.confirmDeliver(..)) && args(runnerId, orderId, proof)")
     public void afterConfirmDeliver(Long runnerId, Long orderId, Object proof) {
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                creditService.processCreditOnDelivered(orderId);
-            }
-        });
+        // Advice ordering can place @AfterReturning OUTSIDE Spring's
+        // transaction interceptor. In that case the delivery transaction
+        // has already committed and registering synchronization would throw
+        // IllegalStateException ("Transaction synchronization is not active").
+        if (TransactionSynchronizationManager.isActualTransactionActive()
+                && TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    processCreditSafely(orderId);
+                }
+            });
+        } else {
+            // No transaction active: process after the successful method
+            // returned/committed. Credit uses its own REQUIRES_NEW transaction.
+            processCreditSafely(orderId);
+        }
+    }
+
+    private void processCreditSafely(Long orderId) {
+        try {
+            creditService.processCreditOnDelivered(orderId);
+        } catch (RuntimeException ex) {
+            // Delivery is already committed. Never turn a successful delivery
+            // into an HTTP error, which could cause the client to repeat it.
+            // TODO: durable retry via outbox/credit-reconciliation job.
+            log.error("Post-delivery credit adjustment failed for order {}, requires reconciliation", orderId, ex);
+        }
     }
 
 }
