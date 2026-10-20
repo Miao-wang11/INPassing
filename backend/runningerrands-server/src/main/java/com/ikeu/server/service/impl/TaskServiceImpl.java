@@ -16,6 +16,7 @@ import com.ikeu.common.money.TaskFeeBreakdown;
 import com.ikeu.common.constant.TaskTypeConstant;
 import com.ikeu.common.enums.TaskStateMachine;
 import com.ikeu.common.exception.BusinessException;
+import com.ikeu.common.exception.ForbiddenException;
 import com.ikeu.common.exception.ParamErrorException;
 import com.ikeu.common.result.PageResult;
 import com.ikeu.model.dto.CancelTaskDTO;
@@ -487,8 +488,22 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
             throw new BusinessException(MessageConstant.TASK_NOT_EXIST);
         }
         campusCatalogService.requireSameCampus(task, currentUserId);
+        // A directed service booking is private to the actual contract parties.
+        // Knowing a task ID must not disclose even masked location and notes.
+        boolean isPublisher = Objects.equals(currentUserId, task.getPublisherId());
+        boolean isReservedProvider = task.getReservedRunnerId() != null
+                && Objects.equals(currentUserId, task.getReservedRunnerId());
+        if (task.getServiceOfferId() != null && !isPublisher && !isReservedProvider) {
+            throw new ForbiddenException("指定服务委托仅限双方查看");
+        }
         TaskDetailVO vo = buildTaskDetailVO(task, currentUserId);
         applyTaskDetailMasking(vo);
+        if (isReservedProvider) {
+            // The assigned provider is a contract participant, so needs
+            // the actual pickup code and private instructions to fulfil it.
+            vo.setPickupCode(task.getPickupCode());
+            vo.setPrivateNote(task.getPrivateNote());
+        }
         return vo;
     }
 

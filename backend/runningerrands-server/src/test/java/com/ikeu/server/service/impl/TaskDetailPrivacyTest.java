@@ -1,6 +1,7 @@
 package com.ikeu.server.service.impl;
 
 import com.ikeu.model.entity.Task;
+import com.ikeu.common.exception.ForbiddenException;
 import com.ikeu.model.entity.User;
 import com.ikeu.model.vo.TaskDetailVO;
 import com.ikeu.server.mapper.*;
@@ -62,6 +63,24 @@ class TaskDetailPrivacyTest {
         assertEquals("", stranger.getPrivateNote());
         assertNotEquals("13800000001", stranger.getContactPhone());
         verify(taskMapper, times(2)).selectById(7L);
+    }
+
+    @Test
+    void directedBookingExposesDetailsOnlyToParties() {
+        Task task = new Task();
+        task.setId(8L);
+        task.setPublisherId(11L);
+        task.setServiceOfferId(44L);
+        task.setReservedRunnerId(31L);
+        task.setPrivateNote("书本放在储物柜");
+        task.setPickupCode("PRIVATE-BOOKING-CODE");
+        when(taskMapper.selectById(8L)).thenReturn(task);
+        assertThrows(ForbiddenException.class, () -> service.getTaskDetail(8L, 22L));
+        TaskDetailVO provider = service.getTaskDetail(8L, 31L);
+        assertEquals("书本放在储物柜", provider.getPrivateNote());
+        assertEquals("PRIVATE-BOOKING-CODE", provider.getPickupCode());
+        TaskDetailVO buyer = service.getTaskDetail(8L, 11L);
+        assertTrue(buyer.getIsOwner());
     }
 
     @Test

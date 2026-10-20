@@ -78,6 +78,14 @@ def main():
                f"FROM task WHERE id={task_id}")==f"{offer_id}:{provider_id}:2"
     stored_window=sql(f"SELECT CONCAT(available_from, ' -> ', available_until) FROM service_offer WHERE id={offer_id}")
     print("CI offer booking accepted with stored window:", stored_window)
+    # Service booking details must never be readable to a same-campus stranger.
+    assert api("GET",f"/task/{task_id}",token=other).get("code")!=1
+    assert api("GET",f"/order/{order_id}",token=other).get("code")!=1
+    assert api("GET",f"/order/task/{task_id}",token=other).get("code")!=1
+    customer_view=ok(api("GET",f"/order/{order_id}",token=buyer),"buyer order details")
+    provider_view=ok(api("GET",f"/order/{order_id}",token=provider),"assigned provider details")
+    assert customer_view.get("privateNote")=="书本放在柜台"
+    assert provider_view.get("privateNote")=="书本放在柜台"
     assert sql(f"SELECT COUNT(*) FROM payment_idempotent WHERE idempotent_key='PAY:task:{task_id}'")=="1"
     print("PASS: service offer creates one prepaid task assigned to provider, not public runner")
 
