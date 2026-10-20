@@ -51,6 +51,7 @@
 - 预约成功在**同一数据库事务**中创建任务、模拟余额预付、订单以及指定服务者接单；被指定的任务不进入公开抢单广场，任何其他学生不能抢走。
 - `service_booking(requester_id,request_key)` 唯一键防重复点击/并发重复扣款，重复请求返回原订单，服务时段使用 UTC+8。
 - 已通过真实 MySQL + Redis + HTTP 测试：6 个并发重复预约只形成一笔订单、服务者离线事务回滚、订单取货/送达/确认及分账、取消定向订单后的隐藏及全额退还，以及先前的校区/抢单/资金回归。
+- [PR #6 隐私与越权修复](https://github.com/Miao-wang11/INPassing/pull/6)：指定服务任务/订单详情仅交易双方可访问；非参与者不能通过猜测 ID 取得取件码、私密备注、证明照片或精确配送地址。
 - [实现和逐步升级说明](docs/PHASE3_SERVICE_STOREFRONT.md) · [PR #5](https://github.com/Miao-wang11/INPassing/pull/5) · [专项 CI（成功）](https://github.com/Miao-wang11/INPassing/actions/runs/39399416104)。
 
 **升级已有 MySQL 数据库时必须先备份并且仅执行一次** `backend/migrations/20261020_service_offer_booking.sql`，再启动新版；不能重跑具有 DROP DATABASE 的 `backend/runningerrands.sql`。详见 [运行与升级手册](docs/RUNBOOK.md)。
