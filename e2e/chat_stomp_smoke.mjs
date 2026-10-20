@@ -118,9 +118,6 @@ async function main() {
       'content-type': 'application/json' }, JSON.stringify({
         receiverId: bob.id, content, messageType: 1
       }));
-    console.log('DIAG sockets connected', a.inbox.length, b.inbox.length, c.inbox.length);
-    console.log('DIAG connected inbox', JSON.stringify(a.inbox), JSON.stringify(b.inbox));
-    console.log('DIAG delivery database precheck', sql("SELECT COUNT(*) FROM chat_message WHERE content='CI_STOMP_PRIVATE_CHAT_20261020'"));
     let received;
     try {
       received = await b.wait(p => p.command === 'MESSAGE' && p.body.includes(content));
@@ -133,8 +130,6 @@ async function main() {
     const message = JSON.parse(received.body);
     assert.equal(Number(message.senderId), alice.id);
     assert.equal(Number(message.receiverId), bob.id);
-    console.log('DIAG recipient got:', received.body.slice(0,180));
-    console.log('DIAG sender inbox before wait:', JSON.stringify(a.inbox).slice(0,2000));
     await a.wait(p => p.command === 'MESSAGE' && p.body.includes(content)).catch(error => {
       console.error('DIAG sender echo timeout:', JSON.stringify(a.inbox).slice(0,3000));
       throw error;
