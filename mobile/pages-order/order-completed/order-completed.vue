@@ -527,7 +527,7 @@ async function onReplyTo(reviewId) {
 function onChat() {
   const userId = otherParty.value.id || ''
   const nickname = encodeURIComponent(otherParty.value.name || '')
-  uni.navigateTo({ url: `/pages/chat-detail/chat-detail?userId=${userId}&nickname=${nickname}` })
+  uni.navigateTo({ url: `/pages-social/chat-detail/chat-detail?userId=${userId}&nickname=${nickname}` })
 }
 
 function onCall() {
@@ -541,11 +541,11 @@ function onCall() {
 function goRunnerProfile() {
   if (isRunner.value) return
   const rid = otherParty.value.id
-  if (rid) uni.navigateTo({ url: `/pages/runner-profile/runner-profile?runnerId=${rid}` })
+  if (rid) uni.navigateTo({ url: `/pages-social/runner-profile/runner-profile?runnerId=${rid}` })
 }
 
 function onReorder() {
-  uni.navigateTo({ url: `/pages/service-publish/service-publish?type=${taskTypeCode.value}` })
+  uni.navigateTo({ url: `/pages-service/service-publish/service-publish?type=${taskTypeCode.value}` })
 }
 
 async function onDeleteOrder() {

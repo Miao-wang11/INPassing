@@ -87,11 +87,11 @@ function onTapAddr(addr) {
     uni.navigateBack()
     return
   }
-  uni.navigateTo({ url: `/pages/address-edit/address-edit?id=${addr.id}&view=1` })
+  uni.navigateTo({ url: `/pages-address/address-edit/address-edit?id=${addr.id}&view=1` })
 }
 
 function onEdit(id) {
-  uni.navigateTo({ url: `/pages/address-edit/address-edit?id=${id}` })
+  uni.navigateTo({ url: `/pages-address/address-edit/address-edit?id=${id}` })
 }
 
 function onAdd() {

@@ -147,15 +147,15 @@ async function loadUnread() {
 function onChat(contact) {
   const nickname = encodeURIComponent(contact.nickname || '')
   uni.navigateTo({
-    url: `/pages/chat-detail/chat-detail?userId=${contact.userId}&nickname=${nickname}&avatar=${encodeURIComponent(contact.avatarUrl || '')}`
+    url: `/pages-social/chat-detail/chat-detail?userId=${contact.userId}&nickname=${nickname}&avatar=${encodeURIComponent(contact.avatarUrl || '')}`
   })
 }
 
 function goNotifications(type) {
-  uni.navigateTo({ url: `/pages/notifications/notifications?type=${type || ''}` })
+  uni.navigateTo({ url: `/pages-social/notifications/notifications?type=${type || ''}` })
 }
 
-function goCertify() { uni.navigateTo({ url: '/pages/certify/certify' }) }
+function goCertify() { uni.navigateTo({ url: '/pages-user/certify/certify' }) }
 function onNotify() { goNotifications('') }
 
 onShow(() => {

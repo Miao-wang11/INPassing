@@ -253,7 +253,7 @@ async function onSubmit() {
     clearDraft()
     uni.showToast({ title: '发布成功', icon: 'success' })
     setTimeout(() => {
-      uni.redirectTo({ url: `/pages/order-success/order-success?reward=${totalReward.value}&type=通用代办` })
+      uni.redirectTo({ url: `/pages-order/order-success/order-success?reward=${totalReward.value}&type=通用代办` })
     }, 800)
   } catch (e) {
     if (e.message?.includes('请先设置支付密码')) {

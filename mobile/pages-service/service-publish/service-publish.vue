@@ -965,7 +965,7 @@ async function onSubmit() {
     uni.showToast({ title: '发布成功', icon: 'success' })
     setTimeout(() => {
       uni.redirectTo({
-        url: `/pages/order-success/order-success?reward=${totalReward.value}&type=${taskType.value}`
+        url: `/pages-order/order-success/order-success?reward=${totalReward.value}&type=${taskType.value}`
       })
     }, 800)
   } catch (e) {

@@ -76,7 +76,7 @@ async function checkPayPasswordStatus() {
 
 function onPayPassword() {
   const mode = hasPayPassword.value ? 'change' : 'set'
-  uni.navigateTo({ url: `/pages/password-manage/password-manage?mode=${mode}` })
+  uni.navigateTo({ url: `/pages-user/password-manage/password-manage?mode=${mode}` })
 }
 
 function onBack() { uni.navigateBack() }

@@ -147,7 +147,7 @@ export function isErrorType(error, type) {
 export function requireCertified(store) {
   if (!store.isCertified) {
     showToast('请先完成实名认证')
-    uni.navigateTo({ url: '/pages/certify/certify' })
+    uni.navigateTo({ url: '/pages-user/certify/certify' })
     return false
   }
   return true
@@ -163,7 +163,7 @@ export function guideToSetPayPassword() {
     confirmText: '去设置',
     success: (res) => {
       if (res.confirm) {
-        uni.navigateTo({ url: '/pages/password-manage/password-manage?mode=set' })
+        uni.navigateTo({ url: '/pages-user/password-manage/password-manage?mode=set' })
       }
     }
   })
