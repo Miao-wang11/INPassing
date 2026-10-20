@@ -12,6 +12,8 @@
 - `PUT /service-offers/{id}/status?status=0|1` 上下架
 - `POST /service-offers/{id}/book` 发起预约：`requestKey,deliveryAddressId,pickupAddress,shoppingBudget?,privateNote?,payPassword`。**不接受前端指定 price/provider/campus；所有金额、服务者来自 MySQL 服务列表。**
 
+**服务时段时间口径**：服务橱窗的 `availableFrom/availableUntil` 使用校园所在地中国标准时间（UTC+08:00）的无时区本地字符串 `YYYY-MM-DDTHH:mm:ss`，后端校验使用 `Asia/Shanghai`；MySQL DATETIME 映射使用 `getObject(LocalDateTime.class)` 避免 JDBC Timestamp 转换，SQL 上架可见性以 `UTC_TIMESTAMP()+8小时` 判断。该时区约定仅覆盖服务橱窗，不贸然更改原项目历史任务与订单时间字段的口径。
+
 移动端导航：首页“同学服务橱窗”、我的“我的服务橱窗”。UI 代码 `mobile/pages-service/storefront/storefront.vue`，API `mobile/api/service-offers.js`。Docker CI 编译服务端和管理员前端，同时静态解析 Uni-app Vue 页面；移动端微信/Android 真机还需要单独验证，不算 CI 真机通过。
 
 ### 预约原子事务

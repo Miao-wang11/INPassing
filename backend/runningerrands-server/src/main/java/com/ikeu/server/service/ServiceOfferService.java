@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
@@ -55,6 +56,10 @@ public class ServiceOfferService {
     public record BookingReceipt(Long offerId, Long taskId, Long orderId,
                                  BigDecimal totalAmount) {}
 
+    // Browser's time picker sends China-campus local wall times without an offset.
+    // Keep offer scheduling in UTC+8 explicitly, independent of Docker/DB host TZ.
+    private static final ZoneId CAMPUS_ZONE = ZoneId.of("Asia/Shanghai");
+    private static LocalDateTime campusNow() { return LocalDateTime.now(CAMPUS_ZONE); }
     private static final Set<String> ALLOWED_TYPES = TaskTypeConstant.ALL_TYPES;
     private static final BigDecimal MAX_SERVICE_PRICE = new BigDecimal("500.00");
     private static final BigDecimal MAX_GOODS_BUDGET = new BigDecimal("5000.00");
@@ -96,8 +101,8 @@ public class ServiceOfferService {
         money(form.servicePrice(), "服务报价", true, MAX_SERVICE_PRICE);
         if (form.availableFrom() == null || form.availableUntil() == null
                 || !form.availableUntil().isAfter(form.availableFrom())
-                || !form.availableUntil().isAfter(LocalDateTime.now())
-                || form.availableUntil().isAfter(LocalDateTime.now().plusDays(30))) {
+                || !form.availableUntil().isAfter(campusNow())
+                || form.availableUntil().isAfter(campusNow().plusDays(30))) {
             throw new BusinessException("服务可提供时间无效或超过30天");
         }
     }
@@ -157,7 +162,7 @@ public class ServiceOfferService {
         }
         boolean filter = category != null && !category.isBlank();
         String condition = " WHERE o.campus_id=? AND o.status=1 AND u.status=1 AND u.is_certify=2 " +
-                "AND u.campus_id=o.campus_id AND o.available_until>NOW()" +
+                "AND u.campus_id=o.campus_id AND o.available_until > (UTC_TIMESTAMP() + INTERVAL 8 HOUR)" +
                 (filter ? " AND o.category=?" : "");
         Object[] args = filter ? new Object[]{campusId,category} : new Object[]{campusId};
         Long count = jdbc.queryForObject("SELECT COUNT(*) FROM service_offer o JOIN user u ON u.id=o.provider_id " +
@@ -177,7 +182,7 @@ public class ServiceOfferService {
     public OfferView detail(Long studentId, Long offerId) {
         Long campus = campusCatalog.requireUserCampus(studentId);
         List<OfferView> rows = jdbc.query(SELECT_OFFER +
-                "WHERE o.id=? AND o.campus_id=? AND o.status=1 AND o.available_until>NOW() " +
+                "WHERE o.id=? AND o.campus_id=? AND o.status=1 AND o.available_until > (UTC_TIMESTAMP() + INTERVAL 8 HOUR) " +
                 "AND u.status=1 AND u.is_certify=2 AND u.campus_id=o.campus_id",
                 ServiceOfferService::map, offerId, campus);
         if (rows.isEmpty()) throw new ForbiddenException("服务不存在或不可在本校区查看");
@@ -247,8 +252,8 @@ public class ServiceOfferService {
         if (offer.providerId().equals(requesterId)) {
             throw new ForbiddenException("不能委托自己的服务");
         }
-        if (offer.status()!=1 || LocalDateTime.now().isBefore(offer.availableFrom())
-                || !LocalDateTime.now().isBefore(offer.availableUntil())) {
+        if (offer.status()!=1 || campusNow().isBefore(offer.availableFrom())
+                || !campusNow().isBefore(offer.availableUntil())) {
             throw new BusinessException("服务当前不在可预约时段");
         }
 
