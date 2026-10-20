@@ -60,7 +60,9 @@ jobs:
           const files = [
             '../mobile/pages/task-hall/task-hall.vue',
             '../mobile/pages/runner-cert/runner-cert.vue',
-            '../mobile/pages-user/runner-cert/runner-cert.vue'
+            '../mobile/pages-user/runner-cert/runner-cert.vue',
+            '../mobile/pages/certify/certify.vue',
+            '../mobile/pages-user/certify/certify.vue'
           ]
           for (const file of files) {
             const raw = fs.readFileSync(file, 'utf8')
