@@ -141,6 +141,10 @@ jobs:
         run: docker exec rr-redis sh -c 'redis-cli -n 1 --scan --pattern "user:login:rate:*" | while IFS= read -r key; do redis-cli -n 1 DEL "$key" >/dev/null; done'
       - name: Verify aftersale dispute and simulated refund arbitration
         run: python3 e2e/order_dispute_smoke.py
+      - name: Reset test login limiter for admin operations suite
+        run: docker exec rr-redis sh -c 'redis-cli -n 1 --scan --pattern "user:login:rate:*" | while IFS= read -r key; do redis-cli -n 1 DEL "$key" >/dev/null; done'
+      - name: Verify read-only operations metrics and ledger reconciliation
+        run: python3 e2e/operations_audit_smoke.py
       - name: Dump logs on failure
         if: failure()
         run: docker compose -f docker/docker-compose.yml logs --tail=150
