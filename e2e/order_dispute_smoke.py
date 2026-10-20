@@ -35,6 +35,21 @@ def main():
         'password':'ci-admin-password-not-for-production'}),'admin login')['token']
     # api uses user auth header, admin must use the token header.
     from campus_isolation_smoke import admin_call
+    import urllib.error
+    import json
+    def admin_expected_failure(method, path, payload=None):
+        # Spring returns HTTP 400 for some business/validation failures; the
+        # original campus helper assumes 2xx and is only for success cases.
+        try:
+            return admin_call(method,path,admin,payload).get('code')!=1
+        except urllib.error.HTTPError as exc:
+            if exc.code not in (400,403,409):
+                raise
+            try:
+                parsed=json.loads(exc.read().decode('utf-8'))
+                return parsed.get('code')!=1
+            except ValueError:
+                return True
 
     first_task,first_order=create_delivered(customer,provider,'REFUND')
     assert money(uid)==Decimal('90.00')
@@ -52,7 +67,7 @@ def main():
     assert api('GET',f'/disputes/{case_id}',token=stranger).get('code')!=1
     assert api('GET',f'/disputes/{case_id}/events',token=stranger).get('code')!=1
     assert api('POST',f'/order/{first_order}/confirm',token=customer).get('code')!=1
-    assert admin_call('PUT',f'/admin/orders/{first_order}/status?status=4',admin).get('code')!=1
+    assert admin_expected_failure('PUT',f'/admin/orders/{first_order}/status?status=4')
     assert money(rid)==Decimal('100.00')
     assert sql(f"SELECT status FROM task_order WHERE id={first_order}")=='3'
     assert api('POST',f'/admin/disputes/{case_id}/decision',
@@ -69,8 +84,8 @@ def main():
     assert sql(f"SELECT COUNT(*) FROM transaction_record WHERE task_id={first_task} AND type=5")=='1'
     assert sql(f"SELECT current_orders FROM runner_profile WHERE user_id={rid}")=='0'
     assert sql(f"SELECT COUNT(*) FROM dispute_event WHERE dispute_id={case_id}")=='2'
-    assert admin_call('POST',f'/admin/disputes/{case_id}/decision',admin,
-        {'decision':'REFUND','note':'重复退款'}).get('code')!=1
+    assert admin_expected_failure('POST',f'/admin/disputes/{case_id}/decision',
+        {'decision':'REFUND','note':'重复退款'})
     assert money(uid)==Decimal('100.00')
     assert sql(f"SELECT COUNT(*) FROM transaction_record WHERE task_id={first_task} AND type=5")=='1'
     print('PASS: admin full refund is atomic, terminal and non-repeatable with immutable history')
