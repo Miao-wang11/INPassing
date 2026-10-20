@@ -12,6 +12,9 @@ import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
+import java.util.Set;
+import org.springframework.messaging.MessagingException;
+import org.springframework.messaging.simp.stomp.StompCommand;
 
 /**
  * STOMP 通道拦截器，在消息处理前从 session 中获取 userId 设置到 ThreadLocal。
@@ -35,14 +38,29 @@ public class AuthChannelInterceptor implements ExecutorChannelInterceptor {
     @Override
     public Message<?> preSend(@NotNull Message<?> message, @NotNull MessageChannel channel) {
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
-        if (accessor != null && accessor.getCommand() != null) {
-            Map<String, Object> sessionAttrs = accessor.getSessionAttributes();
-            log.debug("STOMP preSend: cmd={}, sessionId={}, hasSessionAttrs={}, attrsKeys={}, user={}",
-                    accessor.getCommand(),
-                    accessor.getSessionId(),
-                    sessionAttrs != null,
-                    sessionAttrs != null ? sessionAttrs.keySet() : null,
-                    accessor.getUser());
+        if (accessor == null || accessor.getCommand() == null) return message;
+        StompCommand command=accessor.getCommand();
+        if(command==StompCommand.CONNECT || command==StompCommand.SEND
+                || command==StompCommand.SUBSCRIBE) {
+            Map<String,Object> attrs=accessor.getSessionAttributes();
+            Long authenticatedId=attrs==null?null:toLong(attrs.get("userId"));
+            if(authenticatedId==null||authenticatedId<1) {
+                throw new MessagingException(message,"STOMP session is not authenticated");
+            }
+            // This Principal is the broker's user-destination key. Without it,
+            // convertAndSendToUser cannot reliably target this student.
+            if(command==StompCommand.CONNECT) {
+                accessor.setUser(()->String.valueOf(authenticatedId));
+            }
+            String destination=accessor.getDestination();
+            if(command==StompCommand.SEND && !"/app/chat.send".equals(destination)) {
+                throw new MessagingException(message,"Client cannot send to broker destinations");
+            }
+            if(command==StompCommand.SUBSCRIBE && !Set.of(
+                    "/user/queue/chat","/user/notification","/user/queue/notification")
+                    .contains(destination)) {
+                throw new MessagingException(message,"Subscription is not a user-private destination");
+            }
         }
         return message;
     }

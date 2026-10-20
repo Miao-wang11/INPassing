@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.ikeu.common.constant.MessageConstant;
 import com.ikeu.common.constant.StatusConstant;
 import com.ikeu.common.exception.BusinessException;
+import com.ikeu.common.exception.ForbiddenException;
+import com.ikeu.server.service.CampusCatalogService;
 import com.ikeu.common.exception.NotFoundException;
 import com.ikeu.model.entity.ChatMessage;
 import com.ikeu.model.entity.User;
@@ -34,7 +36,21 @@ public class ChatServiceImpl implements ChatService {
 
     private final ChatMessageMapper chatMessageMapper;
     private final UserMapper userMapper;
+    private final CampusCatalogService campuses;
     private final SimpMessagingTemplate messagingTemplate;
+
+    private void requireChatPermission(Long senderId, Long targetId) {
+        if(targetId==null||senderId==null||senderId.equals(targetId)) {
+            throw new ForbiddenException("不可向自己或无效用户发送私信");
+        }
+        Long campus=campuses.requireUserCampus(senderId);
+        User receiver=userMapper.selectById(targetId);
+        if(receiver==null||!Objects.equals(receiver.getStatus(),StatusConstant.ENABLE)
+                ||!Objects.equals(receiver.getIsCertify(),StatusConstant.CERTIFY_APPROVED)
+                ||!Objects.equals(campus,receiver.getCampusId())) {
+            throw new ForbiddenException("只有同校区有效学生之间才允许聊天");
+        }
+    }
 
     /**
      * 发送消息并实时推送给收发双方。
@@ -57,6 +73,17 @@ public class ChatServiceImpl implements ChatService {
     public void sendMessage(Long senderId, Long receiverId, String content, Integer messageType) {
         if (senderId == null) {
             throw new BusinessException(MessageConstant.SENDER_ID_NULL);
+        }
+        requireChatPermission(senderId,receiverId);
+        if(content==null || content.isBlank() || content.length()>500) {
+            throw new BusinessException("消息内容不能为空，最大500字");
+        }
+        if(messageType!=null && messageType!=1 && messageType!=2) {
+            throw new BusinessException("消息类型不支持");
+        }
+        if(Integer.valueOf(2).equals(messageType) && (!content.startsWith("https://")
+                || content.length()>500)) {
+            throw new BusinessException("图片消息必须提供HTTPS图片链接");
         }
         ChatMessage msg = ChatMessage.builder()
                 .senderId(senderId)
@@ -104,6 +131,7 @@ public class ChatServiceImpl implements ChatService {
      */
     @Override
     public List<ChatVO> getHistory(Long userId, Long targetUserId, int page, int size) {
+        requireChatPermission(userId,targetUserId);
         Page<ChatMessage> p = chatMessageMapper.selectHistory(
                 new Page<>(page, size), userId, targetUserId);
 
@@ -171,9 +199,12 @@ public class ChatServiceImpl implements ChatService {
         }
 
         List<ContactVO> contacts = new ArrayList<>();
+        Long campus=campuses.requireUserCampus(userId);
         for (Long contactId : contactIds) {
             User contact = userMap.get(contactId);
-            if (contact == null) continue;
+            if (contact == null || !Objects.equals(contact.getCampusId(),campus)
+                    || !Objects.equals(contact.getIsCertify(),StatusConstant.CERTIFY_APPROVED)
+                    || !Objects.equals(contact.getStatus(),StatusConstant.ENABLE)) continue;
 
             ChatMessage lastMsg = lastMsgMap.get(contactId);
             int unread = unreadMap.getOrDefault(contactId, StatusConstant.UNREAD);
@@ -206,6 +237,7 @@ public class ChatServiceImpl implements ChatService {
     @Override
     @Transactional
     public void markRead(Long userId, Long senderId) {
+        requireChatPermission(userId,senderId);
         chatMessageMapper.markRead(userId, senderId);
     }
 

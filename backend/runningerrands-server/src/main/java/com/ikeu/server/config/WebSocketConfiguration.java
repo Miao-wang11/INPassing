@@ -59,7 +59,8 @@ public class WebSocketConfiguration implements WebSocketMessageBrokerConfigurer 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
         registry.setApplicationDestinationPrefixes("/app");
-        registry.enableSimpleBroker("/user", "/queue");
+        // User destinations must be resolved to private queue paths before reaching the broker.
+        registry.enableSimpleBroker("/queue", "/notification");
         registry.setUserDestinationPrefix("/user");
     }
 
