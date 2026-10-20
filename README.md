@@ -6,7 +6,7 @@
 
 - 原始底座源码已迁入：Spring Boot 3 / Java 21 后端、Vue 3 管理端、uni-app 移动端、MySQL SQL、Redis 与 Docker 配置。
 - GitHub Actions 已证明 Maven 打包、隐私回归测试、管理后台 npm 构建、完整 Docker 四容器启动、后端健康接口、Nginx 管理页面，以及管理员/演示学生登录检查通过。其他顺手功能仍需分阶段验收。
-- 任务详情权限相关的跨用户缓存风险已修补，回归测试与 Docker 部署改造正在持续验收。
+- 任务详情权限相关的跨用户缓存风险已修补，回归测试与 Docker 部署改造已经经过 CI 验证。
 - 系统目前仍带有上游 iRun 的业务规则及外观，**不是顺手最终版本**。
 - 支付是本地数据库记录和模拟余额，不接真实微信或支付宝，也不可当真实货币系统使用。
 
@@ -70,4 +70,4 @@ npm run dev
 - [源项目作者 README（遵守署名）](docs/UPSTREAM_iRun_README.md)
 - 固定上游源码提交见 `docs/UPSTREAM_IRUN_COMMIT.txt`，后续更改均在本仓库保留 Git 记录。
 
-**分支策略**：`integration/irun-bootstrap` 为集成与测试区；只有符合构建、权限、抢单并发及交易闭环验收要求的代码才作为正式可运行版本合入 `main`。
+**分支策略**：`main` 提供已通过基础构建、容器启动与登录检查的阶段 1 底座；`integration/irun-bootstrap` 保留迁入历史。校园双向身份、资金结算、服务橱窗和争议处理等正式 V1 能力将在后续阶段独立验收。
