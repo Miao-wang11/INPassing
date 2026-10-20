@@ -269,7 +269,14 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
             }
 
             // 6. 原子更新跑腿员当前接单数 +1
-            runnerProfileMapper.incrementCurrentOrders(runnerId);
+            // Re-evaluate availability atomically: multiple distinct task locks
+            // cannot protect the same worker's global capacity.
+            int capacityClaimed = runnerProfileMapper.incrementCurrentOrdersIfAvailable(
+                    runnerId, CreditConstant.CREDIT_FREEZE_THRESHOLD);
+            if (capacityClaimed != 1) {
+                // Roll back order insert and task CAS in this same transaction.
+                throw new BusinessException(MessageConstant.RUNNER_NOT_AVAILABLE);
+            }
 
             log.info("跑腿员 {} 接单成功，订单 ID: {}", runnerId, order.getId());
 

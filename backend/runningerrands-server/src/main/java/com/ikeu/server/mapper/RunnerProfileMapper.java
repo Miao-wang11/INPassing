@@ -122,6 +122,17 @@ public interface RunnerProfileMapper extends BaseMapper<RunnerProfile> {
     void incrementCompletedStats(@Param("userId") Long userId);
 
     /**
+     * Atomic capacity guard across DIFFERENT tasks for the same worker.
+     * Prevents overbooking when two @Transactional accept calls race.
+     */
+    @Update("UPDATE runner_profile SET current_orders = current_orders + 1 " +
+            "WHERE user_id = #{userId} AND verify_status = 2 AND is_online = 1 " +
+            "AND is_banned = 0 AND credit_score >= #{minCredit} " +
+            "AND current_orders < max_concurrent_orders")
+    int incrementCurrentOrdersIfAvailable(@Param("userId") Long userId,
+                                           @Param("minCredit") int minCredit);
+
+    /**
      * 原子增加当前接单数。
      *
      * @param userId 用户ID

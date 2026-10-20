@@ -122,6 +122,30 @@ def main():
     assert active == "1", f"Concurrent task has {active} active orders (expected 1)"
     print("PASS: 20 concurrent accept requests from 4 users, exactly one winner")
 
+    # Different task locks cannot protect global worker capacity.
+    # Two independent tasks race to consume exactly one free order slot.
+    sql("INSERT INTO user (username,password,pay_password,nickname,status,is_certify,balance) "
+        "SELECT 'ci_capacity',password,pay_password,'Capacity Test',1,2,100 "
+        "FROM user WHERE username='testuser2'")
+    cap_id = int(sql("SELECT id FROM user WHERE username='ci_capacity'"))
+    cap_token = ok(api("POST", "/user/login", {
+        "loginType":1,"username":"ci_capacity","password":"123456"
+    }), "capacity user login")["token"]
+    sql("INSERT INTO runner_profile (user_id,verify_status,credit_score,is_online,"
+        "max_concurrent_orders,current_orders,is_banned) "
+        f"VALUES ({cap_id},2,100,1,1,0,0)")
+    cap_tasks = [publish(), publish()]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        cap_results = list(pool.map(
+            lambda task: api("POST", f"/order/accept/{task}", token=cap_token),
+            cap_tasks
+        ))
+    assert len([x for x in cap_results if x.get("code") == 1]) == 1, (
+        f"Two parallel tasks overbooked one worker: {cap_results}"
+    )
+    assert sql(f"SELECT current_orders FROM runner_profile WHERE user_id={cap_id}") == "1"
+    print("PASS: two parallel tasks do not exceed one student's max order capacity")
+
     print("PASS: certified student publishes; other certified student accepts")
     print("PASS: fresh profile created atomically without separate runner application")
     print("PASS: self-accept, duplicate accept and banned student rejected")
