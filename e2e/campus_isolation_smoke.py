@@ -44,8 +44,16 @@ def main():
     assert len(ok(api("GET","/campus/list"),"new campus listed")) >= 3
     print("PASS: admin can create reference school/campus; public catalog sees them")
 
-    east=login("testuser")
-    west=login("testuser3")
+    # Use isolated test identities rather than relogging shared seeds: earlier
+    # CI stages intentionally exercise login throttling on testuser.
+    sql("INSERT INTO user (username,password,pay_password,nickname,status,is_certify,balance,campus_id) "
+        "SELECT 'ci_scope_east',password,pay_password,'CI East',1,2,100,campus_id "
+        "FROM user WHERE username='testuser'")
+    sql("INSERT INTO user (username,password,pay_password,nickname,status,is_certify,balance,campus_id) "
+        "SELECT 'ci_scope_west',password,pay_password,'CI West',1,2,100,campus_id "
+        "FROM user WHERE username='testuser3'")
+    east=login("ci_scope_east")
+    west=login("ci_scope_west")
     east_id=task(east,"EAST")
     west_id=task(west,"WEST")
 
