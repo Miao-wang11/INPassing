@@ -14,17 +14,18 @@ def main():
     assert float(summary["totalDisputeRefunds"]) >= 10.0,summary
     print("PASS: real dispute status and simulated refund ledger metrics")
 
-    for suffix,state in [("REFUND",6),("RELEASE",5)]:
-        task=int(sql("SELECT id FROM task WHERE public_desc='CI仲裁订单-"+suffix+
-                     "' ORDER BY id DESC LIMIT 1"))
-        res=ok(admin_call("GET",f"/admin/operations/ledger/{task}",admin),"inspect task "+suffix)
+    for dispute_status,state in [(3,6),(2,5)]:
+        # Use the canonical dispute->task FK; raw Chinese task descriptions
+        # are sensitive to mysql CLI locale/character-set settings in CI.
+        task=int(sql(f"SELECT task_id FROM order_dispute WHERE status={dispute_status} ORDER BY id DESC LIMIT 1"))
+        res=ok(admin_call("GET",f"/admin/operations/ledger/{task}",admin),"inspect arbitrated task")
         assert res["consistent"] is True,res
         assert int(res["taskStatus"])==state,res
         assert float(res["charged"])==10.0,res
         assert float(res["refunded"] if state==6 else res["disbursed"])==10.0,res
     print("PASS: refunded and settled orders reconcile against actual debit/credit records")
 
-    task=int(sql("SELECT id FROM task WHERE public_desc='CI仲裁订单-REFUND' ORDER BY id DESC LIMIT 1"))
+    task=int(sql("SELECT task_id FROM order_dispute WHERE status=3 ORDER BY id DESC LIMIT 1"))
     # CI only: inject a 1-cent ledger corruption and restore it, verifying
     # that the read-only diagnostics do not silently repair wallet balances.
     sql(f"UPDATE transaction_record SET amount=amount-0.01 WHERE task_id={task} AND type=1 LIMIT 1")
