@@ -203,6 +203,9 @@
             <text>{{ isQueueWait ? '代办完成' : '我已送达' }}</text>
           </view>
         </view>
+        <view v-if="order.orderStatus === 3" class="cancel-btn" @click="openDispute">
+          <text>申请售后 / 查看争议</text>
+        </view>
         <view v-if="isPublisher && order.orderStatus === 3" class="submit-btn submit-btn--confirm" :class="{ 'submit-btn--disabled': actionLocked }" @click="onConfirm">
           <iconpark-icon name="checkmarkempty" size="22" color="#fff" />
           <text>{{ isQueueWait ? '确认完成' : '确认收货' }}</text>
@@ -400,6 +403,10 @@ async function loadData() {
   refreshing.value = false
 }
 
+function openDispute() {
+  if(!orderId.value) return
+  uni.navigateTo({url:'/pages-order/dispute/dispute?orderId='+orderId.value})
+}
 async function onPickup() {
   const label = isQueueWait.value ? '到达凭证' : '取货凭证'
   if (uploadedPickupImages.value.length === 0) {

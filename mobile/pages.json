@@ -19,6 +19,7 @@
         { "path": "order-delivering/order-delivering", "style": { "navigationStyle": "custom", "navigationBarTitleText": "订单详情" } },
         { "path": "general-publish/general-publish", "style": { "navigationStyle": "custom", "navigationBarTitleText": "通用任务" } },
         { "path": "cancel-reason/cancel-reason", "style": { "navigationStyle": "custom", "navigationBarTitleText": "取消原因" } },
+        { "path": "dispute/dispute", "style": { "navigationStyle": "custom", "navigationBarTitleText": "订单售后" } },
         { "path": "station-select/station-select", "style": { "navigationStyle": "custom", "navigationBarTitleText": "选择取件驿站" } }
       ]
     },
