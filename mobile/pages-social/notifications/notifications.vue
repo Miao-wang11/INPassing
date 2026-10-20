@@ -320,9 +320,9 @@ async function onBatchDelete() {
 
 function onViewOrder(item) {
   if (item.taskId) {
-    uni.navigateTo({ url: `/pages/order-delivering/order-delivering?taskId=${item.taskId}&role=publisher` })
+    uni.navigateTo({ url: `/pages-order/order-delivering/order-delivering?taskId=${item.taskId}&role=publisher` })
   } else if (item.orderId) {
-    uni.navigateTo({ url: `/pages/order-delivering/order-delivering?orderId=${item.orderId}&role=runner` })
+    uni.navigateTo({ url: `/pages-order/order-delivering/order-delivering?orderId=${item.orderId}&role=runner` })
   }
 }
 
