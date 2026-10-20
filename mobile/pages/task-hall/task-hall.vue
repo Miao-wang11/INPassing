@@ -75,8 +75,8 @@
             </view>
           </view>
           <view class="task-reward-wrap">
-            <text class="task-reward">¥{{ item.rewardText }}</text>
-            <text v-if="item.productFee" class="task-product-fee">含商品费 ¥{{ item.productFee.toFixed(2) }}</text>
+            <text class="task-reward">报酬 ¥{{ item.rewardText }}</text>
+            <text v-if="item.shoppingBudget > 0" class="task-product-fee">另含采购预算 ¥{{ item.shoppingBudget.toFixed(2) }}</text>
           </view>
         </view>
 
@@ -380,6 +380,12 @@ function normalizeItem(raw) {
 
   return {
     ...card,
+    // Only labor/service remuneration is displayed as "报酬".
+    // The prepaid shopping budget is a separate reimbursable component.
+    rewardText: raw.tip != null && (raw.deliveryFee != null || raw.delivery_fee != null)
+      ? (Number(raw.tip) + Number(raw.deliveryFee ?? raw.delivery_fee)).toFixed(2)
+      : card.rewardText,
+    shoppingBudget: Number(raw.productCost ?? raw.product_cost ?? 0),
     uniqueKey: `task-${raw.taskId || raw.id || Math.random()}`,
     taskId: card.taskId,
     publisherId: pubId,
