@@ -25,6 +25,7 @@ import com.ikeu.server.mapper.TaskOrderMapper;
 import com.ikeu.server.mapper.UserMapper;
 import com.ikeu.server.service.AdminOrderService;
 import com.ikeu.server.service.PaymentService;
+import com.ikeu.server.service.OrderDisputeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
@@ -54,6 +55,7 @@ public class AdminOrderServiceImpl implements AdminOrderService {
     private final TaskMapper taskMapper;
     private final UserMapper userMapper;
     private final PaymentService paymentService;
+    private final OrderDisputeService orderDisputes;
     private final RunnerProfileMapper runnerProfileMapper;
     private final RedissonClient redissonClient;
     private final StringRedisTemplate stringRedisTemplate;
@@ -195,9 +197,13 @@ public class AdminOrderServiceImpl implements AdminOrderService {
             order = taskOrderMapper.selectById(orderId);
             if (order == null) throw new NotFoundException(MessageConstant.ORDER_NOT_EXIST);
             Task task = taskMapper.selectById(taskId);
+            orderDisputes.requireNoOpenCase(orderId);
 
             OrderStateMachine.validate(order.getStatus(), status, "订单");
 
+            if (taskOrderMapper.updateStatusIf(orderId, order.getStatus(), status, "") != 1) {
+                throw new BusinessException(MessageConstant.ORDER_STATUS_CHANGED);
+            }
             LocalDateTime now = LocalDateTime.now();
             order.setStatus(status);
             if (status.equals(StatusConstant.ORDER_COMPLETED)) order.setConfirmTime(now);

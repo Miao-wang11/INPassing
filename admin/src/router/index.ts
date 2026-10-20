@@ -71,6 +71,12 @@ const router = createRouter({
           meta: { title: '任务详情', hidden: true }
         },
         {
+          path: 'disputes',
+          name: 'Disputes',
+          component: () => import('@/views/disputes/DisputeListView.vue'),
+          meta: { title: '售后纠纷', icon: 'Warning' }
+        },
+        {
           path: 'orders',
           name: 'Orders',
           component: () => import('@/views/orders/OrderListView.vue'),
