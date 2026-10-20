@@ -38,7 +38,7 @@ jobs:
         run: mvn -B -ntp -DskipTests package
       - name: Regression test for cross-user task details
         working-directory: backend
-        run: mvn -B -ntp -pl runningerrands-server -am -Dtest=TaskDetailPrivacyTest -Dsurefire.failIfNoSpecifiedTests=false test
+        run: mvn -B -ntp -pl runningerrands-server -am -Dtest=TaskDetailPrivacyTest,StudentAcceptanceProfileServiceTest -Dsurefire.failIfNoSpecifiedTests=false test
 
   admin-build:
     runs-on: ubuntu-latest
@@ -54,6 +54,32 @@ jobs:
         run: |
           npm ci
           npm run build
+          node - <<'NODE'
+          const fs = require('fs')
+          const { parse, compileScript, compileTemplate } = require('./node_modules/@vue/compiler-sfc')
+          const files = [
+            '../mobile/pages/task-hall/task-hall.vue',
+            '../mobile/pages/runner-cert/runner-cert.vue',
+            '../mobile/pages-user/runner-cert/runner-cert.vue'
+          ]
+          for (const file of files) {
+            const raw = fs.readFileSync(file, 'utf8')
+            const { descriptor, errors } = parse(raw, { filename: file })
+            if (errors.length) throw new Error(`Vue SFC parse failed ${file}: ${errors.join('; ')}`)
+            if (descriptor.script || descriptor.scriptSetup) {
+              compileScript(descriptor, { id: 'shunshou-mobile-check' })
+            }
+            if (descriptor.template) {
+              const tpl = compileTemplate({
+                source: descriptor.template.content,
+                filename: file,
+                id: 'shunshou-mobile-check'
+              })
+              if (tpl.errors.length) throw new Error(`Vue template failed ${file}: ${tpl.errors.join('; ')}`)
+            }
+            console.log('PASS mobile SFC syntax:', file)
+          }
+          NODE
 
   docker-smoke:
     runs-on: ubuntu-latest
@@ -91,6 +117,8 @@ jobs:
           student_json=$(curl -fsS --retry 5 --retry-delay 2 -X POST http://localhost:8080/api/user/login -H 'Content-Type: application/json' --data '{"loginType":1,"username":"testuser","password":"123456"}')
           printf '%s' "$student_json" | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data.get("code")==1, "demo student login failed"'
           echo "Admin and student login smoke checks passed"
+      - name: End-to-end student publish and first-time accept
+        run: python3 e2e/student_dual_role_smoke.py
       - name: Dump logs on failure
         if: failure()
         run: docker compose -f docker/docker-compose.yml logs --tail=150
