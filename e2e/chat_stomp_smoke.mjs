@@ -132,7 +132,12 @@ async function main() {
     const message = JSON.parse(received.body);
     assert.equal(Number(message.senderId), alice.id);
     assert.equal(Number(message.receiverId), bob.id);
-    await a.wait(p => p.command === 'MESSAGE' && p.body.includes(content));
+    console.log('DIAG recipient got:', received.body.slice(0,180));
+    console.log('DIAG sender inbox before wait:', JSON.stringify(a.inbox).slice(0,2000));
+    await a.wait(p => p.command === 'MESSAGE' && p.body.includes(content)).catch(error => {
+      console.error('DIAG sender echo timeout:', JSON.stringify(a.inbox).slice(0,3000));
+      throw error;
+    });
     assert.equal(sql("SELECT COUNT(*) FROM chat_message WHERE content='" + content + "'"
       + ' AND sender_id=' + alice.id + ' AND receiver_id=' + bob.id), '1');
     console.log('PASS: authenticated STOMP direct message, isolated user queue and MySQL persistence');
