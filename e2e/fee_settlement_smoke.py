@@ -3,10 +3,23 @@
 Only run against ephemeral CI containers with SHUNSHOU_DEMO_SEED=true.
 """
 from decimal import Decimal
+import time
 from student_dual_role_smoke import api, ok, sql
 
 def cash(query):
     return Decimal(sql(query))
+
+def perform_with_busy_retry(method, path, payload, token, label):
+    """Only retry the explicit transient lock-busy response, bounded."""
+    for attempt in range(5):
+        result = api(method, path, payload, token)
+        if result.get("code") == 1:
+            return result.get("data") or {}
+        if result.get("msg") != "系统繁忙，请稍后重试":
+            return ok(result, label)
+        print(f"Transient lock contention on {label} (attempt {attempt + 1})")
+        time.sleep(1.0)
+    raise AssertionError(f"{label}: task lock remained busy after bounded retries")
 
 def main():
     # Use real BCrypt hashes + seeded pay password. These accounts are CI-only.
@@ -49,9 +62,9 @@ def main():
 
     # Proof is only a dummy URL; this stage does NOT audit purchased goods.
     proof = {"imageUrls":["https://example.invalid/ci-proof.jpg"]}
-    ok(api("POST", f"/order/{order_id}/pickup", proof, runner), "pickup proof")
-    ok(api("POST", f"/order/{order_id}/deliver", proof, runner), "delivery proof")
-    ok(api("POST", f"/order/{order_id}/confirm", token=publisher), "buyer confirms")
+    perform_with_busy_retry("POST", f"/order/{order_id}/pickup", proof, runner, "pickup")
+    perform_with_busy_retry("POST", f"/order/{order_id}/deliver", proof, runner, "delivery")
+    perform_with_busy_retry("POST", f"/order/{order_id}/confirm", None, publisher, "buyer confirms")
 
     # Prepaid total moved to worker, but only the SERVICE part is earnings.
     assert cash(f"SELECT balance FROM user WHERE id={runner_id}") == Decimal("109.90")
