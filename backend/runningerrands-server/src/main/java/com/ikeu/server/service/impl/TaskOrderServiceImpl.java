@@ -646,6 +646,11 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
 
         Task task = taskMapper.selectById(order.getTaskId());
         if (task == null) throw new NotFoundException(MessageConstant.TASK_NOT_EXIST);
+        boolean participant = Objects.equals(currentUserId, task.getPublisherId())
+                || Objects.equals(currentUserId, order.getRunnerId());
+        if (task.getServiceOfferId() != null && !participant) {
+            throw new ForbiddenException("指定服务委托仅限双方查看");
+        }
 
         List<Long> userIds = List.of(task.getPublisherId(), order.getRunnerId());
         List<User> users = userMapper.selectBatchIds(userIds);
@@ -696,6 +701,16 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
 
         // 对非参与方脱敏联系信息
         if (!vo.isOwnerPublisher() && !vo.isOwnerRunner()) {
+            // Legacy public-demand orders can be browsed by strangers, but
+            // pickup codes, private notes and delivery location are NOT public.
+            vo.setPickupCode(null);
+            vo.setPrivateNote("");
+            vo.setTaskSpecs(null);
+            vo.setDeliveryAddress("");
+            // Delivery/collection proof photos may reveal room numbers and
+            // other people; nonparticipants never receive those URLs.
+            vo.setPickupProofImgs(Collections.emptyList());
+            vo.setDeliverProofImgs(Collections.emptyList());
             String contactName = vo.getContactName();
             if (contactName != null && !contactName.isEmpty()) {
                 vo.setContactName(contactName.length() == 1
@@ -750,6 +765,12 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
         // 无订单记录 — 检查是否为已取消的任务
         Task task = taskMapper.selectById(taskId);
         if (task != null && StatusConstant.TASK_CANCELLED.equals(task.getStatus())) {
+            boolean isPublisher = Objects.equals(currentUserId, task.getPublisherId());
+            boolean isReservedProvider = task.getReservedRunnerId() != null
+                    && Objects.equals(currentUserId, task.getReservedRunnerId());
+            if (task.getServiceOfferId() != null && !isPublisher && !isReservedProvider) {
+                throw new ForbiddenException("指定服务委托仅限双方查看");
+            }
             OrderDetailVO vo = BeanUtil.copyProperties(task, OrderDetailVO.class, "imageUrls");
             vo.setOrderId(null);
             vo.setTaskId(task.getId());
@@ -767,7 +788,16 @@ public class TaskOrderServiceImpl extends ServiceImpl<TaskOrderMapper, TaskOrder
             vo.setPublisherAvatar(publisher != null ? publisher.getAvatarUrl() : "");
             vo.setPublisherPhone(publisher != null ? publisher.getPhone() : "");
             vo.setOwnerPublisher(currentUserId != null && currentUserId.equals(task.getPublisherId()));
-            vo.setOwnerRunner(false);
+            vo.setOwnerRunner(isReservedProvider);
+            if (!isPublisher && !isReservedProvider) {
+                vo.setPrivateNote("");
+                vo.setTaskSpecs(null);
+                vo.setDeliveryAddress("");
+                vo.setPickupAddress("");
+                vo.setContactPhone("");
+                vo.setContactName("");
+                vo.setPublisherPhone(maskPhone(vo.getPublisherPhone()));
+            }
             return vo;
         }
 
