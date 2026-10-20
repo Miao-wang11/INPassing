@@ -45,7 +45,7 @@ public interface TaskMapper extends BaseMapper<Task> {
      */
     @Select("SELECT *, (6371 * acos(cos(radians(#{lat})) * cos(radians(pickup_lat)) * " +
             "cos(radians(pickup_lng) - radians(#{lng})) + sin(radians(#{lat})) * sin(radians(pickup_lat)))) " +
-            "AS distance FROM task WHERE campus_id = #{campusId} AND status = 1 AND expire_time > NOW() " +
+            "AS distance FROM task WHERE campus_id = #{campusId} AND reserved_runner_id IS NULL AND status = 1 AND expire_time > NOW() " +
             "AND pickup_lng IS NOT NULL AND pickup_lat IS NOT NULL " +
             "HAVING distance < #{radiusKm} ORDER BY distance LIMIT #{offset}, #{size}")
     List<Task> selectNearbyTasks(@Param("lng") BigDecimal lng, @Param("lat") BigDecimal lat,
@@ -55,7 +55,7 @@ public interface TaskMapper extends BaseMapper<Task> {
     /**
      * 统计指定半径内的待接单任务总数。
      */
-    @Select("SELECT COUNT(*) FROM task WHERE campus_id = #{campusId} AND status = 1 AND expire_time > NOW() " +
+    @Select("SELECT COUNT(*) FROM task WHERE campus_id = #{campusId} AND reserved_runner_id IS NULL AND status = 1 AND expire_time > NOW() " +
             "AND pickup_lng IS NOT NULL AND pickup_lat IS NOT NULL " +
             "AND (6371 * acos(cos(radians(#{lat})) * cos(radians(pickup_lat)) * " +
             "cos(radians(pickup_lng) - radians(#{lng})) + sin(radians(#{lat})) * sin(radians(pickup_lat)))) < #{radiusKm}")

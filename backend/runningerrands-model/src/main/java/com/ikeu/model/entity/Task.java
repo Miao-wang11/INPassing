@@ -41,6 +41,14 @@ public class Task implements Serializable {
     @TableField("campus_id")
     private Long campusId;
 
+    /** Source service offer; null for normal public demand. */
+    @TableField("service_offer_id")
+    private Long serviceOfferId;
+
+    /** Directed tasks are reserved for one provider even after a cancellation. */
+    @TableField("reserved_runner_id")
+    private Long reservedRunnerId;
+
     /** 发布者ID，关联user表的id */
     @TableField("publisher_id")
     private Long publisherId;
