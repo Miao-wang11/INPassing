@@ -75,8 +75,8 @@ public class ChatServiceImpl implements ChatService {
             throw new BusinessException(MessageConstant.SENDER_ID_NULL);
         }
         requireChatPermission(senderId,receiverId);
-        if(content==null || content.isBlank() || content.length()>2000) {
-            throw new BusinessException("消息内容不能为空，最大2000字");
+        if(content==null || content.isBlank() || content.length()>500) {
+            throw new BusinessException("消息内容不能为空，最大500字");
         }
         if(messageType!=null && messageType!=1 && messageType!=2) {
             throw new BusinessException("消息类型不支持");
