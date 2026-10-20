@@ -117,6 +117,7 @@ async function main() {
       'content-type': 'application/json' }, JSON.stringify({
         receiverId: bob.id, content, messageType: 1
       }));
+    console.log('DIAG sockets connected', a.inbox.length, b.inbox.length, c.inbox.length);
     const received = await b.wait(p => p.command === 'MESSAGE' && p.body.includes(content));
     const message = JSON.parse(received.body);
     assert.equal(Number(message.senderId), alice.id);
