@@ -42,7 +42,20 @@
 
 **升级特别注意：如果已经用旧版本运行过，MySQL 卷内缺少新表与字段，必须先备份并执行 [增量迁移 SQL](backend/migrations/20261020_campus_scope.sql)，再启动新后端。绝不能在旧库上重跑 `backend/runningerrands.sql`（包含删库语句）。具体 PowerShell 步骤见 [运行手册](docs/RUNBOOK.md)。**
 
-未完成：真实校区信息审核验真、历史用户/任务人工归属迁移、校区停用和跨校区特殊授权、校园地点目录以及服务橱窗。现有订单和余额仍是模拟交易，不是生产资金系统。
+未完成：真实校区信息审核验真、历史用户/任务人工归属迁移、校区停用和跨校区特殊授权、校园地点目录以及服务时段排班。现有订单和余额仍是模拟交易，不是生产资金系统。
+
+## 阶段 3：学生服务橱窗与定向预约（已验证的模拟交易）
+
+- 不区分固定商家/买家账号：认证学生可以**提供服务**、发布服务报价，也可以**主动委托**其他学生服务。
+- 手机端首页新增“同学服务橱窗”，个人页新增“我的服务橱窗”。可查看同校区报价、发布、编辑、上下架和预约服务，按当前校区访问。
+- 预约成功在**同一数据库事务**中创建任务、模拟余额预付、订单以及指定服务者接单；被指定的任务不进入公开抢单广场，任何其他学生不能抢走。
+- `service_booking(requester_id,request_key)` 唯一键防重复点击/并发重复扣款，重复请求返回原订单，服务时段使用 UTC+8。
+- 已通过真实 MySQL + Redis + HTTP 测试：6 个并发重复预约只形成一笔订单、服务者离线事务回滚、订单取货/送达/确认及分账、取消定向订单后的隐藏及全额退还，以及先前的校区/抢单/资金回归。
+- [实现和逐步升级说明](docs/PHASE3_SERVICE_STOREFRONT.md) · [PR #5](https://github.com/Miao-wang11/INPassing/pull/5) · [专项 CI（成功）](https://github.com/Miao-wang11/INPassing/actions/runs/39399416104)。
+
+**升级已有 MySQL 数据库时必须先备份并且仅执行一次** `backend/migrations/20261020_service_offer_booking.sql`，再启动新版；不能重跑具有 DROP DATABASE 的 `backend/runningerrands.sql`。详见 [运行与升级手册](docs/RUNBOOK.md)。
+
+**验收边界**：资金仍是纯数据库模拟余额；未实现真实支付、购物小票差额核验、争议售后、服务排班/改价协商、全功能手机真机测试。正式运营前还需完善这些场景。
 
 ## Windows 11 + Docker Desktop 快速运行（推荐）
 
@@ -95,7 +108,7 @@ npm run dev
 
 ## Mobile 用户端
 
-`mobile/` 保留了上游 uni-app 代码。当前 Docker Compose 仅部署管理后台与后端；移动端可在 HBuilderX 导入 `mobile`，按目标平台修改 `manifest.json` 的 AppID/合法域名和接口基地址后单独构建。本阶段未将微信小程序真机运行标记为已验证。
+`mobile/` 保留了上游 uni-app 代码。当前 Docker Compose 仅部署管理后台与后端；服务橱窗 UI 位于 `mobile/pages-service/storefront/storefront.vue`。移动端可在 HBuilderX 导入 `mobile`，按目标平台修改 `manifest.json` 的 AppID/合法域名和接口基地址后单独构建。本阶段未将微信小程序真机运行标记为已验证。
 
 ## 文档与开发规范
 
@@ -104,4 +117,4 @@ npm run dev
 - [源项目作者 README（遵守署名）](docs/UPSTREAM_iRun_README.md)
 - 固定上游源码提交见 `docs/UPSTREAM_IRUN_COMMIT.txt`，后续更改均在本仓库保留 Git 记录。
 
-**分支策略**：`main` 提供 CI 已核验的阶段 1 底座及阶段 2 分批交付能力；`integration/irun-bootstrap` 保留迁入历史。服务橱窗、实际商品采购核对、售后争议处理等正式 V1 能力仍待后续开发与独立验收。
+**分支策略**：`main` 提供 CI 已核验的阶段 1 底座及阶段 2 分批交付能力；`integration/irun-bootstrap` 保留迁入历史。服务橱窗基础交易已核验；实际商品采购核对、售后争议、完整服务排班与真机联调等正式 V1 能力仍待后续开发与独立验收.
