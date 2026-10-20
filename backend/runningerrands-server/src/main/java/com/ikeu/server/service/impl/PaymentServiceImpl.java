@@ -2,6 +2,8 @@ package com.ikeu.server.service.impl;
 
 import com.ikeu.common.constant.MessageConstant;
 import com.ikeu.common.constant.StatusConstant;
+import com.ikeu.common.money.TaskFeeBreakdown;
+import com.ikeu.model.entity.Task;
 import com.ikeu.common.exception.BusinessException;
 import com.ikeu.common.exception.NotFoundException;
 import com.ikeu.model.entity.PaymentIdempotent;
@@ -130,35 +132,45 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     /**
-     * 任务完成时支付报酬给跑腿员，幂等返回是否首次执行。
-     *
-     * <p>校验金额 > 0 → 幂等校验（key=INCOME:task:{taskId}:runner:{runnerId}）→
-     * SELECT FOR UPDATE → 增加余额并记录收入流水 → 返回 true。
-     * 幂等拦截时返回 false，调用方据此决定是否更新统计。
-     *
-     * @param runnerId 跑腿员ID
-     * @param taskId 任务ID
-     * @param amount 报酬金额
-     * @return true 首次支付，false 幂等拦截
+     * V1 simulated settlement: service revenue = tip + delivery fee;
+     * goods budget is a reimbursement, NOT earned service income.
+     * Actual receipt/price adjustment workflow is a later milestone.
      */
     @Override
     @Transactional
-    public boolean payToRunner(Long runnerId, Long taskId, BigDecimal amount) {
-        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BusinessException(MessageConstant.AMOUNT_MUST_GREATER_THAN_ZERO);
+    public boolean settleTask(Long runnerId, Task task) {
+        if (task == null || task.getId() == null) {
+            throw new BusinessException(MessageConstant.INVALID_FEE_BREAKDOWN);
         }
-        if (!checkIdempotent(INCOME_TASK_KEY_PREFIX + taskId + ":runner:" + runnerId)) return false;
+        final TaskFeeBreakdown parts;
+        try {
+            parts = TaskFeeBreakdown.of(task.getTip(), task.getDeliveryFee(),
+                    task.getProductCost(), task.getReward());
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessException(MessageConstant.INVALID_FEE_BREAKDOWN);
+        }
+        // Preserve legacy idempotency key so historical settlements do not replay.
+        if (!checkIdempotent(INCOME_TASK_KEY_PREFIX + task.getId() + ":runner:" + runnerId)) return false;
 
         User runner = userMapper.selectByIdForUpdate(runnerId);
         if (runner == null) throw new NotFoundException(MessageConstant.USER_NOT_EXIST);
-
         BigDecimal before = runner.getBalance();
-        BigDecimal after = before.add(amount);
-        runner.setBalance(after);
+        BigDecimal afterService = before.add(parts.serviceFee());
+        BigDecimal afterTotal = afterService.add(parts.shoppingBudget());
+
+        // Atomic balance change + two reconciled, immutable ledger rows.
+        runner.setBalance(afterTotal);
         userMapper.updateById(runner);
-        transactionService.recordTransaction(runnerId, taskId, amount,
-                StatusConstant.TRANSACTION_INCOME, before, after);
-        log.info("配送员 {} 完成任务 {}， 收入报酬 {}", runnerId, taskId, amount);
+        if (parts.serviceFee().signum() > 0) {
+            transactionService.recordTransaction(runnerId, task.getId(), parts.serviceFee(),
+                    StatusConstant.TRANSACTION_INCOME, before, afterService);
+        }
+        if (parts.shoppingBudget().signum() > 0) {
+            transactionService.recordTransaction(runnerId, task.getId(), parts.shoppingBudget(),
+                    StatusConstant.TRANSACTION_SHOPPING_REIMBURSEMENT, afterService, afterTotal);
+        }
+        log.info("Task {} settled runner {}: service={}, shoppingBudget={}, total={}",
+                task.getId(), runnerId, parts.serviceFee(), parts.shoppingBudget(), parts.total());
         return true;
     }
 

@@ -2,6 +2,7 @@ package com.ikeu.server.service;
 
 import com.ikeu.common.exception.BusinessException;
 import com.ikeu.common.exception.NotFoundException;
+import com.ikeu.model.entity.Task;
 
 import java.math.BigDecimal;
 
@@ -46,17 +47,11 @@ public interface PaymentService {
     void refundForTask(Long userId, Long taskId, BigDecimal amount);
 
     /**
-     * 任务完成时支付报酬给跑腿员，幂等校验后增加余额并记录收入流水，
-     * 返回是否首次支付，调用方据此决定是否更新跑腿员完成统计。
-     *
-     * @param runnerId 跑腿员用户 ID
-     * @param taskId   任务 ID
-     * @param amount   报酬金额
-     * @return true 首次支付，false 幂等拦截（重复请求）
-     * @throws BusinessException 金额不合法时抛出
-     * @throws NotFoundException 跑腿员用户不存在时抛出
+     * Settle a completed task's prepaid total exactly once. The service
+     * income and shopping reimbursement are tracked separately.
+     * @return true if first settlement, false for duplicate
      */
-    boolean payToRunner(Long runnerId, Long taskId, BigDecimal amount);
+    boolean settleTask(Long runnerId, Task task);
 
     /**
      * 用户账户充值，使用 1 秒时间窗口幂等 + SELECT FOR UPDATE 防止重复提交。

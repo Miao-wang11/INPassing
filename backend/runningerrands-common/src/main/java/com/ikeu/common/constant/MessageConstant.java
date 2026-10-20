@@ -131,6 +131,7 @@ public final class MessageConstant {
 
 
     // ========== 余额相关 ==========
+    public static final String INVALID_FEE_BREAKDOWN = "任务金额不合法或各分项与预付总额不一致";
     public static final String AMOUNT_MUST_GREATER_THAN_ZERO = "操作金额必须大于0";
     public static final String BALANCE_NOT_ENOUGH = "账户余额不足，请先充值";
     public static final String WITHDRAW_AMOUNT_TOO_LOW = "提现金额不满足最低要求";

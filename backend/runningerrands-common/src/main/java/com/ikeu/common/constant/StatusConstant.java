@@ -54,6 +54,7 @@ public final class StatusConstant {
     public static final Integer TRANSACTION_RECHARGE = 3;  // 充值
     public static final Integer TRANSACTION_WITHDRAW = 4;  // 提现
     public static final Integer TRANSACTION_REFUND = 5;    // 退款
+    public static final Integer TRANSACTION_SHOPPING_REIMBURSEMENT = 6; // 采购预算报销(不是跑腿服务收入)
 
     // ========== 通知类型 ==========
     public static final int NOTICE_SYSTEM = 1;             // 系统通知
