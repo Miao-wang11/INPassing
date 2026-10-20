@@ -73,7 +73,8 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
                         "/notification/**",
                         "/transaction/**",
                         "/chat/**",
-                        "/service-offers/**"
+                        "/service-offers/**",
+                        "/disputes/**"
                 )
                 .excludePathPatterns(
                         "/user/send",
