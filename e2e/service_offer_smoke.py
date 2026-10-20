@@ -120,6 +120,29 @@ def main():
     assert sql("SELECT COUNT(*) FROM service_booking WHERE request_key='ci_offline_rollback_0001'")=="0"
     print("PASS: runner offline rolls back task, ledger, booking, debit and order")
 
+    # A provider may cancel before pickup; the now-waiting task MUST remain
+    # reserved and hidden, and the buyer can cancel it to receive full refund.
+    sql(f"UPDATE runner_profile SET is_online=1 WHERE user_id={provider_id}")
+    before_cancel=cash(buyer_id)
+    delegated=ok(api("POST",f"/service-offers/{offer_id}/book",
+        {**details,"requestKey":"ci_provider_cancellation_0001"},buyer),
+        "new service booking for cancellation")
+    cancel_task=int(delegated["taskId"])
+    cancel_order=int(delegated["orderId"])
+    assert cash(buyer_id)==before_cancel-Decimal("9.25")
+    ok(api("POST",f"/order/{cancel_order}/cancel",{"reason":"CI不再接单"},provider),
+        "provider cancels directed order")
+    assert sql(f"SELECT status FROM task WHERE id={cancel_task}")=="1"
+    assert api("POST",f"/order/accept/{cancel_task}",token=other).get("code")!=1
+    listed=ok(api("GET","/task/list?page=1&size=100",token=other),"public hall after cancellation")
+    assert not any(int(o["taskId"])==cancel_task for o in listed["records"])
+    ok(api("PUT",f"/task/{cancel_task}/cancel",{"reason":"CI取消已撤回服务"},buyer),
+       "buyer cancels and receives refund")
+    assert cash(buyer_id)==before_cancel
+    assert sql(f"SELECT COUNT(*) FROM transaction_record WHERE task_id={cancel_task} AND type=5")=="1"
+    print("PASS: canceled directed task stays private; requester can refund the full prepayment")
+
+
     # Offer editing and taking offline protect existing settlement while
     # removing offer from new public reservations.
     ok(api("PUT",f"/service-offers/{offer_id}/status?status=0",{},provider),"offline offer")
