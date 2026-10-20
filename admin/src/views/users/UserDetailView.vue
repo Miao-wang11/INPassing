@@ -67,7 +67,7 @@
               :initial-index="i"
               fit="cover"
               class="task-image anim-img"
-              :style="{ animationDelay: (0.2 + i * 0.07) + 's' }"
+              :style="{ animationDelay: (0.2 + Number(i) * 0.07) + 's' }"
             >
               <template #error>
                 <div class="image-error">
