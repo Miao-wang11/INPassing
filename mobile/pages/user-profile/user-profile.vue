@@ -140,20 +140,20 @@ const runnerCertClass = computed(() => {
 })
 
 function onCertify() {
-  uni.navigateTo({ url: '/pages/certify/certify' })
+  uni.navigateTo({ url: '/pages-user/certify/certify' })
 }
 
 function goMessages() { uni.switchTab({ url: '/pages/message/message' }) }
 
 function onMenuItem(key) {
   const routes = {
-    bills: '/pages/bills/bills',
+    bills: '/pages-user/bills/bills',
     offers: '/pages-service/storefront/storefront',
-    runner: '/pages/runner-cert/runner-cert',
-    address: '/pages/address-list/address-list',
-    privacy: '/pages/privacy-security/privacy-security',
-    dashboard: '/pages/runner-dashboard/runner-dashboard',
-    reviews: '/pages/runner-reviews/runner-reviews',
+    runner: '/pages-user/runner-cert/runner-cert',
+    address: '/pages-address/address-list/address-list',
+    privacy: '/pages-user/privacy-security/privacy-security',
+    dashboard: '/pages-social/runner-dashboard/runner-dashboard',
+    reviews: '/pages-social/runner-reviews/runner-reviews',
     support: null
   }
   if (routes[key]) {
@@ -163,8 +163,8 @@ function onMenuItem(key) {
   }
 }
 
-function onProfileTap() { uni.navigateTo({ url: '/pages/profile-settings/profile-settings' }) }
-function onRecharge() { uni.navigateTo({ url: '/pages/wallet/wallet' }) }
+function onProfileTap() { uni.navigateTo({ url: '/pages-user/profile-settings/profile-settings' }) }
+function onRecharge() { uni.navigateTo({ url: '/pages-user/wallet/wallet' }) }
 
 async function onLogout() {
   const res = await new Promise(r => {

@@ -434,7 +434,7 @@ function onAcceptBlocked(item) {
   if (store.isCreditFrozen) {
     uni.showToast({ title: '您的信用分不足，已暂停接单', icon: 'none', duration: 2500 })
   } else if (!store.isCertified) {
-    uni.navigateTo({ url: '/pages/certify/certify' })
+    uni.navigateTo({ url: '/pages-user/certify/certify' })
    }
 }
 
@@ -450,14 +450,14 @@ async function onAccept(item) {
     uni.showToast({ title: '接单成功', icon: 'success' })
     const idx = list.value.indexOf(item)
     if (idx > -1) list.value.splice(idx, 1)
-    uni.navigateTo({ url: `/pages/order-delivering/order-delivering?taskId=${item.taskId}&role=runner` })
+    uni.navigateTo({ url: `/pages-order/order-delivering/order-delivering?taskId=${item.taskId}&role=runner` })
   } catch (e) { /* handled */ }
   accepting.value = false
 }
 
 function onItemTap(item) {
   // 非发布者浏览时不以runner身份进入（隐私信息仅订单双方可见）
-  uni.navigateTo({ url: `/pages/order-waiting/order-waiting?taskId=${item.taskId}` })
+  uni.navigateTo({ url: `/pages-order/order-waiting/order-waiting?taskId=${item.taskId}` })
 }
 
 function loadMore() {

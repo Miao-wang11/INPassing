@@ -293,17 +293,17 @@ function copyOrderNo(no) {
 function onItemTap(item) {
   if (item.isPublisher) {
     if (item.status === 5 || item.status === 6) {
-      uni.navigateTo({ url: `/pages/order-completed/order-completed?taskId=${item.taskId}` })
+      uni.navigateTo({ url: `/pages-order/order-completed/order-completed?taskId=${item.taskId}` })
     } else if (item.status >= 2) {
-      uni.navigateTo({ url: `/pages/order-delivering/order-delivering?taskId=${item.taskId}&role=publisher` })
+      uni.navigateTo({ url: `/pages-order/order-delivering/order-delivering?taskId=${item.taskId}&role=publisher` })
     } else {
-      uni.navigateTo({ url: `/pages/order-waiting/order-waiting?taskId=${item.taskId}` })
+      uni.navigateTo({ url: `/pages-order/order-waiting/order-waiting?taskId=${item.taskId}` })
     }
   } else {
     if (item.status === 4 || item.status === 5) {
-      uni.navigateTo({ url: `/pages/order-completed/order-completed?orderId=${item.orderId}` })
+      uni.navigateTo({ url: `/pages-order/order-completed/order-completed?orderId=${item.orderId}` })
     } else {
-      uni.navigateTo({ url: `/pages/order-delivering/order-delivering?orderId=${item.orderId}&role=runner` })
+      uni.navigateTo({ url: `/pages-order/order-delivering/order-delivering?orderId=${item.orderId}&role=runner` })
     }
   }
 }
@@ -325,7 +325,7 @@ function onCancelTask(item) {
       target.canCancel = false
     } catch (e) { /* handled */ }
   })
-  uni.navigateTo({ url: '/pages/cancel-reason/cancel-reason' })
+  uni.navigateTo({ url: '/pages-order/cancel-reason/cancel-reason' })
 }
 
 onUnmounted(() => { uni.$off('cancelReasonSelected') })

@@ -259,11 +259,11 @@ function openStorefront() {
 }
 function onService(typeValue) {
   if (!requireCertified(store)) return
-  uni.navigateTo({ url: `/pages/service-publish/service-publish?type=${typeValue}` })
+  uni.navigateTo({ url: `/pages-service/service-publish/service-publish?type=${typeValue}` })
 }
 
 function goCertify() {
-  uni.navigateTo({ url: '/pages/certify/certify' })
+  uni.navigateTo({ url: '/pages-user/certify/certify' })
 }
 
 function onViewAll() {
@@ -272,26 +272,26 @@ function onViewAll() {
 
 function onHotCoffee() {
   if (!requireCertified(store)) return
-  uni.navigateTo({ url: '/pages/coffee-order/coffee-order' })
+  uni.navigateTo({ url: '/pages-service/coffee-order/coffee-order' })
 }
 
 function onHotPrint() {
   if (!requireCertified(store)) return
-  uni.navigateTo({ url: '/pages/print-order/print-order' })
+  uni.navigateTo({ url: '/pages-service/print-order/print-order' })
 }
 
 function onHotPaperExpress() {
   if (!requireCertified(store)) return
-  uni.navigateTo({ url: '/pages/paper-express/paper-express' })
+  uni.navigateTo({ url: '/pages-service/paper-express/paper-express' })
 }
 
 function onNearbyTask(task) {
-  uni.navigateTo({ url: `/pages/order-waiting/order-waiting?taskId=${task.taskId}` })
+  uni.navigateTo({ url: `/pages-order/order-waiting/order-waiting?taskId=${task.taskId}` })
 }
 
 function onFabClick() {
   if (!requireCertified(store)) return
-  uni.navigateTo({ url: '/pages/general-publish/general-publish?type=通用代办' })
+  uni.navigateTo({ url: '/pages-order/general-publish/general-publish?type=通用代办' })
 }
 
 function goMessages() {
