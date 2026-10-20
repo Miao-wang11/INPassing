@@ -59,7 +59,8 @@ public class WebSocketConfiguration implements WebSocketMessageBrokerConfigurer 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
         registry.setApplicationDestinationPrefixes("/app");
-        // /user is a destination rewrite prefix, not a broker destination. A broker\n        // subscription to /user/queue/chat would race with the private resolved queue.\n        registry.enableSimpleBroker("/queue");
+        // User destinations must be resolved to private queue paths before reaching the broker.
+        registry.enableSimpleBroker("/queue");
         registry.setUserDestinationPrefix("/user");
     }
 
