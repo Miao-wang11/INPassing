@@ -19,8 +19,10 @@ def cash(user_id):
     return Decimal(sql(f"SELECT balance FROM user WHERE id={user_id}"))
 
 def offer(token,title,price="4.25"):
-    start=(datetime.now()-timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
-    end=(datetime.now()+timedelta(hours=5)).strftime("%Y-%m-%dT%H:%M:%S")
+    # Wide enough for CI host vs container timezone differences; actual
+    # stored DATETIME is read as LocalDateTime without Timestamp conversion.
+    start=(datetime.now()-timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S")
+    end=(datetime.now()+timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%S")
     return ok(api("POST","/service-offers",{
         "category":"校内代办","subType":"图书馆还书",
         "title":title,"description":"校园服务橱窗真实交易回归测试",
@@ -74,6 +76,8 @@ def main():
     assert int(sql(f"SELECT COUNT(*) FROM task_order WHERE id={order_id} AND runner_id={provider_id}"))==1
     assert sql(f"SELECT CONCAT(service_offer_id,':',reserved_runner_id,':',status) "
                f"FROM task WHERE id={task_id}")==f"{offer_id}:{provider_id}:2"
+    stored_window=sql(f"SELECT CONCAT(available_from, ' -> ', available_until) FROM service_offer WHERE id={offer_id}")
+    print("CI offer booking accepted with stored window:", stored_window)
     assert sql(f"SELECT COUNT(*) FROM payment_idempotent WHERE idempotent_key='PAY:task:{task_id}'")=="1"
     print("PASS: service offer creates one prepaid task assigned to provider, not public runner")
 

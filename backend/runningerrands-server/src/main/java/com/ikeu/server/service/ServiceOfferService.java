@@ -145,8 +145,8 @@ public class ServiceOfferService {
     private static OfferView map(java.sql.ResultSet rs, int row) throws java.sql.SQLException {
         return new OfferView(rs.getLong(1),rs.getLong(2),rs.getLong(3),rs.getString(4),
                 rs.getString(5),rs.getString(6),rs.getString(7),rs.getString(8),
-                rs.getBigDecimal(9),rs.getTimestamp(10).toLocalDateTime(),
-                rs.getTimestamp(11).toLocalDateTime(),rs.getInt(12));
+                rs.getBigDecimal(9),rs.getObject(10, LocalDateTime.class),
+                rs.getObject(11, LocalDateTime.class),rs.getInt(12));
     }
 
     public PageResult<OfferView> hall(Long studentId, String category, int page, int size) {
