@@ -25,6 +25,8 @@
           <el-descriptions-item label="真实姓名">{{ isSuperAdmin ? (user.realName || '-') : maskName(user.realName) }}</el-descriptions-item>
           <el-descriptions-item label="学号">{{ isSuperAdmin ? (user.studentId || '-') : (user.studentId ? '****' + user.studentId.slice(-3) : '-') }}</el-descriptions-item>
           <el-descriptions-item label="学院">{{ user.campus || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="正式校区ID">{{ user.campusId || '尚未绑定' }}</el-descriptions-item>
+          <el-descriptions-item label="申请校区ID">{{ user.pendingCampusId || '-' }}</el-descriptions-item>
           <el-descriptions-item label="个性签名" :span="2">{{ user.signature || '-' }}</el-descriptions-item>
         </el-descriptions>
       </el-card>
