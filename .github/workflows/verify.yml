@@ -7,6 +7,8 @@ on:
     paths:
       - backend/**
       - admin/**
+      - mobile/**
+      - e2e/**
       - docker/**
       - Dockerfile
       - .dockerignore
@@ -84,6 +86,9 @@ jobs:
             console.log('PASS mobile SFC syntax:', file)
           }
           NODE
+
+      - name: Regression test for fragmented mobile STOMP frames
+        run: node e2e/mobile_stomp_parser_smoke.mjs
 
   docker-smoke:
     runs-on: ubuntu-latest
