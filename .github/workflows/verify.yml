@@ -125,9 +125,10 @@ jobs:
         run: python3 e2e/fee_settlement_smoke.py
       - name: Reset login IP rate window in disposable CI Redis only
         run: |
-          # Production rate limits are unchanged. The previous test suites
+          # Production rate limits are unchanged. Spring Docker uses Redis database 1 (not the redis-cli default 0).
+          # The previous test suites
           # have legitimately consumed the shared localhost login allowance.
-          docker exec rr-redis sh -c 'redis-cli --scan --pattern "user:login:rate:*" | while IFS= read -r key; do redis-cli DEL "$key" >/dev/null; done'
+          docker exec rr-redis sh -c 'redis-cli -n 1 --scan --pattern "user:login:rate:*" | while IFS= read -r key; do redis-cli -n 1 DEL "$key" >/dev/null; done'
       - name: Verify cross-campus privacy and verified campus membership
         run: python3 e2e/campus_isolation_smoke.py
       - name: Dump logs on failure
