@@ -1,0 +1,264 @@
+/* ===== 小i跑腿 Admin 设计系统 ===== */
+
+:root {
+  /* ===== 品牌色 ===== */
+  --brand-primary: #FF6B4A;
+  --brand-primary-hover: #FF8B72;
+  --brand-primary-active: #E8553A;
+  --brand-primary-light: #FFF0ED;
+  --brand-secondary: #2EC4B6;
+  --brand-secondary-light: #D4F5F0;
+  --brand-accent: #FFB347;
+  --brand-accent-light: #FFF7ED;
+
+  /* ===== 语义色 ===== */
+  --color-success: #34D399;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+  --color-info: #3B82F6;
+
+  /* ===== 中性色 ===== */
+  --neutral-bg: #FAFAF8;
+  --neutral-surface: #F5F5F0;
+  --neutral-raised: #FFFFFF;
+  --neutral-hover: #EEEDE8;
+  --neutral-outline: #D4D2CC;
+  --neutral-outline-light: #E8E6E0;
+
+  /* ===== 文字色 ===== */
+  --text-primary: #1C1B1A;
+  --text-secondary: #5E5D58;
+  --text-tertiary: #8F8D88;
+  --text-placeholder: #C0C4CC;
+
+  /* ===== 圆角 ===== */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 36px;
+
+  /* ===== 阴影 ===== */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.08);
+  --shadow-xl: 0 25px 50px -12px rgba(0, 0, 0, 0.12);
+
+  /* ===== 动画 ===== */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 0.12s;
+  --duration-normal: 0.2s;
+  --duration-slow: 0.3s;
+
+  /* ===== 侧边栏 ===== */
+  --sidebar-bg: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f2b3d 100%);
+  --sidebar-bg-solid: #1a1a2e;
+  --sidebar-text: #bfcbd9;
+  --sidebar-text-active: #FFFFFF;
+  --sidebar-item-hover: rgba(255, 107, 74, 0.08);
+  --sidebar-item-active: rgba(255, 107, 74, 0.15);
+  --sidebar-logo-bg: #151d2b;
+
+  /* ===== Element Plus 变量覆盖 ===== */
+  --el-color-primary: #FF6B4A;
+  --el-color-primary-light-3: #FF8B72;
+  --el-color-primary-light-5: #FFB09C;
+  --el-color-primary-light-7: #FFD4CA;
+  --el-color-primary-light-8: #FFE4DE;
+  --el-color-primary-light-9: #FFF0ED;
+  --el-color-primary-dark-2: #E8553A;
+
+  --el-color-success: #34D399;
+  --el-color-success-light-3: #5DDFB3;
+  --el-color-success-light-5: #86E8CA;
+  --el-color-success-light-7: #AEF0DC;
+  --el-color-success-light-8: #C7F5E6;
+  --el-color-success-light-9: #E0FAF1;
+  --el-color-success-dark-2: #10B981;
+
+  --el-color-warning: #F59E0B;
+  --el-color-warning-light-3: #F7B73D;
+  --el-color-warning-light-5: #F9CB6E;
+  --el-color-warning-light-7: #FBDF9F;
+  --el-color-warning-light-8: #FCE9B8;
+  --el-color-warning-light-9: #FEF3D0;
+  --el-color-warning-dark-2: #D97706;
+
+  --el-color-danger: #EF4444;
+  --el-color-danger-light-3: #F26B6B;
+  --el-color-danger-light-5: #F58F8F;
+  --el-color-danger-light-7: #F9B5B5;
+  --el-color-danger-light-8: #FBCDCD;
+  --el-color-danger-light-9: #FDE2E2;
+  --el-color-danger-dark-2: #DC2626;
+
+  --el-color-info: #3B82F6;
+  --el-color-info-light-3: #609CF8;
+  --el-color-info-light-5: #87B5FA;
+  --el-color-info-light-7: #B0CFFC;
+  --el-color-info-light-8: #C9DEFD;
+  --el-color-info-light-9: #E2EEFE;
+  --el-color-info-dark-2: #2563EB;
+
+  /* ===== Element Plus 基础变量 ===== */
+  --el-font-family: 'SF Pro Text', 'SF Pro Display', system-ui, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
+  --el-font-size-base: 14px;
+
+  --el-bg-color: #FAFAF8;
+  --el-bg-color-page: #FAFAF8;
+  --el-bg-color-overlay: #FFFFFF;
+
+  --el-text-color-primary: #1C1B1A;
+  --el-text-color-regular: #5E5D58;
+  --el-text-color-secondary: #8F8D88;
+  --el-text-color-placeholder: #C0C4CC;
+  --el-text-color-disabled: #C0C4CC;
+
+  --el-border-color: #D4D2CC;
+  --el-border-color-light: #E8E6E0;
+  --el-border-color-lighter: #F0EFEC;
+  --el-border-color-extra-light: #F5F5F0;
+  --el-border-color-dark: #B0AEA8;
+
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 4px;
+  --el-border-radius-round: 22px;
+  --el-border-radius-circle: 9999px;
+
+  --el-box-shadow-light: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --el-box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --el-box-shadow-dark: 0 10px 30px rgba(0, 0, 0, 0.08);
+
+  --el-disabled-bg-color: #F5F5F0;
+  --el-disabled-text-color: #C0C4CC;
+  --el-disabled-border-color: #E8E6E0;
+
+  --el-fill-color: #F5F5F0;
+  --el-fill-color-light: #FAFAF8;
+  --el-fill-color-blank: #FFFFFF;
+
+  /* ===== 过渡 ===== */
+  --el-transition-duration: 0.2s;
+  --el-transition-duration-fast: 0.12s;
+  --el-transition-function: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ===== 布局 ===== */
+  --sidebar-width: 220px;
+  --sidebar-collapsed-width: 64px;
+  --header-height: 56px;
+}
+
+/* ===== 全局基础样式 ===== */
+
+html {
+  font-family: var(--el-font-family);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  background-color: var(--el-bg-color-page);
+  color: var(--el-text-color-primary);
+  font-size: var(--el-font-size-base);
+}
+
+/* ===== 滚动条 ===== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--neutral-outline);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
+
+/* ===== 表格全局优化 ===== */
+.el-table th.el-table__cell {
+  padding: 12px 0;
+}
+
+.el-table td.el-table__cell {
+  padding: 10px 0;
+}
+
+.el-table .el-table__cell .cell {
+  padding: 0 14px;
+  word-break: break-word;
+}
+
+/* 操作列按钮间距 */
+.el-table .el-table__cell .el-button + .el-button {
+  margin-left: 6px;
+}
+
+/* 固定列：去掉阴影分隔，统一背景 */
+.el-table .el-table__fixed-right::before,
+.el-table .el-table__fixed::before {
+  background: transparent;
+  box-shadow: none;
+}
+
+.el-table .el-table__fixed-right,
+.el-table .el-table__fixed {
+  box-shadow: none;
+}
+
+.el-table .el-table__fixed-right .el-table__fixed-header-wrapper th,
+.el-table .el-table__fixed-right th.el-table__cell,
+.el-table .el-table__fixed .el-table__fixed-header-wrapper th,
+.el-table .el-table__fixed th.el-table__cell {
+  background: var(--neutral-surface);
+}
+
+.el-table .el-table__fixed-right td.el-table__cell,
+.el-table .el-table__fixed td.el-table__cell {
+  background: var(--el-fill-color-blank);
+}
+
+.el-table__fixed-right-patch {
+  background: var(--neutral-surface) !important;
+  border-bottom: 1px solid var(--el-border-color-light) !important;
+}
+
+.el-table .el-table__fixed-right .el-table__body-wrapper {
+  background: var(--el-fill-color-blank);
+}
+
+/* ===== 通用动画类 ===== */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-up {
+  animation: fadeInUp var(--duration-slow) var(--ease-out) both;
+}
+
+.animate-fade-in {
+  animation: fadeIn var(--duration-slow) var(--ease-out) both;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.25s var(--ease-spring) both;
+}

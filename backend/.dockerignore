@@ -1,0 +1,12 @@
+**/target/
+**/node_modules/
+**/.git/
+**/.idea/
+**/*.iml
+**/.claude/
+**/docs/
+**/*.md
+!README.md
+*.log
+.env
+.env.*

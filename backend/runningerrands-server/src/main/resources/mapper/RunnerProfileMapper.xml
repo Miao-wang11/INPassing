@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ikeu.server.mapper.RunnerProfileMapper">
+
+    <select id="selectRunnersWithKeyword" resultType="com.ikeu.model.entity.RunnerProfile">
+        SELECT rp.* FROM runner_profile rp
+        INNER JOIN user u ON rp.user_id = u.id
+        WHERE 1=1
+        <if test="verifyStatus != null">
+            AND rp.verify_status = #{verifyStatus}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (u.nickname LIKE CONCAT('%', #{keyword}, '%') OR u.phone LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY rp.created_at DESC
+    </select>
+
+</mapper>

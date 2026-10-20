@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "reactbits": {
+      "command": "node",
+      "args": [
+        "./node_modules/reactbits-dev-mcp-server/dist/index.js"
+      ]
+    },
+    "shadcn": {
+      "command": "npx",
+      "args": [
+        "shadcn@latest",
+        "mcp"
+      ]
+    }
+  }
+}

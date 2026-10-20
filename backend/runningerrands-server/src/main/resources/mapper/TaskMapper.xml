@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ikeu.server.mapper.TaskMapper">
+
+    <select id="searchTasks" resultType="com.ikeu.model.entity.Task">
+        SELECT * FROM task
+        <where>
+            status = 1 AND expire_time > NOW()
+            <if test="keyword != null and keyword != ''">
+                AND public_desc LIKE CONCAT('%', #{keyword}, '%')
+            </if>
+            <if test="type != null and type != ''">
+                AND type = #{type}
+            </if>
+            <if test="minReward != null">
+                AND reward &gt;= #{minReward}
+            </if>
+            <if test="maxReward != null">
+                AND reward &lt;= #{maxReward}
+            </if>
+        </where>
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="filterTasks" resultType="com.ikeu.model.entity.Task">
+        SELECT * FROM task
+        <where>
+            status = 1 AND expire_time > NOW()
+            <if test="type != null and type != ''">
+                AND type = #{type}
+            </if>
+            <if test="pickupAddress != null and pickupAddress != ''">
+                AND pickup_address LIKE CONCAT('%', #{pickupAddress}, '%')
+            </if>
+            <if test="deliveryAddress != null and deliveryAddress != ''">
+                AND delivery_address LIKE CONCAT('%', #{deliveryAddress}, '%')
+            </if>
+            <if test="requireSex != null and requireSex != ''">
+                AND require_sex = #{requireSex}
+            </if>
+            <if test="minReward != null">
+                AND reward &gt;= #{minReward}
+            </if>
+            <if test="maxReward != null">
+                AND reward &lt;= #{maxReward}
+            </if>
+        </where>
+        ORDER BY created_at DESC
+    </select>
+
+</mapper>
