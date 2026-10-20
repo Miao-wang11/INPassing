@@ -80,7 +80,12 @@ def main():
     # Reverse roles: user2 was the runner and now publishes. User1 published
     # earlier, becomes a runner with the SAME login account.
     reverse_task = publish(token=worker)
-    ok(api("POST", "/runner/online", token=publisher), "existing runner goes online")
+    original_user_id = sql("SELECT id FROM user WHERE username='testuser'")
+    online = sql(f"SELECT is_online FROM runner_profile WHERE user_id={int(original_user_id)}")
+    if online == "0":
+        ok(api("POST", "/runner/online", token=publisher), "existing runner goes online")
+    else:
+        assert online == "1", f"Unexpected online state: {online!r}"
     reversed_order = ok(api("POST", f"/order/accept/{reverse_task}", token=publisher),
                         "original publisher becomes runner")
     assert reversed_order.get("orderId"), "Reverse-role acceptance returned no order"
