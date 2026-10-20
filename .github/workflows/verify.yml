@@ -8,14 +8,22 @@ on:
       - backend/**
       - admin/**
       - docker/**
+      - Dockerfile
+      - .dockerignore
       - .github/workflows/verify.yml
   pull_request:
     branches:
       - main
 permissions:
   contents: read
+env:
+  MYSQL_ROOT_PASSWORD: ci-example-mysql-password
+  JWT_ADMIN_SECRET: ci-admin-jwt-secret-is-long-enough-123456
+  JWT_USER_SECRET: ci-user-jwt-secret-is-long-enough-1234567
+  ADMIN_PASSWORD: ci-admin-password-not-for-production
+  SHUNSHOU_DEMO_SEED: "false"
 jobs:
-  backend-compile:
+  backend-compile-and-privacy-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,6 +36,10 @@ jobs:
       - name: Build backend modules
         working-directory: backend
         run: mvn -B -ntp -DskipTests package
+      - name: Regression test for cross-user task details
+        working-directory: backend
+        run: mvn -B -ntp -pl runningerrands-server -am -Dtest=TaskDetailPrivacyTest -Dsurefire.failIfNoSpecifiedTests=false test
+
   admin-build:
     runs-on: ubuntu-latest
     steps:
@@ -42,9 +54,38 @@ jobs:
         run: |
           npm ci
           npm run build
-  compose-config:
+
+  docker-smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Validate compose syntax
-        run: docker compose -f docker/docker-compose.yml config -q
+      - name: Validate and start full stack
+        run: |
+          set -euo pipefail
+          docker compose -f docker/docker-compose.yml config -q
+          docker compose -f docker/docker-compose.yml up --build -d
+      - name: Confirm backend is ready
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 90); do
+            if curl --silent --fail --show-error --max-time 3 http://localhost:8080/api/actuator/health; then
+              echo "Backend is healthy"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "Backend health timed out" >&2
+          exit 1
+      - name: Confirm Nginx proxies admin
+        run: |
+          set -euo pipefail
+          curl -fsSL http://localhost/api/ -o /tmp/admin-smoke.html
+          grep -q '<html' /tmp/admin-smoke.html
+          curl -fsS http://localhost/api/actuator/health
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose -f docker/docker-compose.yml logs --tail=150
+      - name: Stop and remove ephemeral services
+        if: always()
+        run: docker compose -f docker/docker-compose.yml down -v
