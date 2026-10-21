@@ -1,0 +1,46 @@
+name: Agent Phase 1 CI
+on:
+  push:
+    branches: [feat/agent-phase1-skeleton]
+    paths:
+      - 'ai-service/**'
+      - '.github/workflows/agent-phase1.yml'
+      - 'backend/**'
+  pull_request:
+    paths:
+      - 'ai-service/**'
+      - '.github/workflows/agent-phase1.yml'
+      - 'backend/**'
+permissions:
+  contents: read
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install dependencies
+        run: python -m pip install -e '.[dev]'
+      - name: Test agent and real TCP HTTP
+        env:
+          SHUNSHOU_AI_INTERNAL_TOKEN: ci-not-used-directly-0123456789abcdef-0123456789
+        run: |
+          python -m compileall -q app tests
+          pytest -q
+  java-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - name: Original Java reactor build and tests
+        run: mvn -B -f backend/pom.xml clean verify
