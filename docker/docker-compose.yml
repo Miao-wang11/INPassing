@@ -11,12 +11,11 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
       - ../backend/runningerrands.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-      # These scripts run ONLY on a fresh, empty mysql_data volume, in order.
+      # On fresh empty volumes, base schema is followed ONLY by agent tables.
       # Existing volumes require a backed-up/manual one-time migration (see docs).
-      - ../backend/migrations/20261020_campus_scope.sql:/docker-entrypoint-initdb.d/02-campus.sql:ro
-      - ../backend/migrations/20261020_service_offer_booking.sql:/docker-entrypoint-initdb.d/03-offers.sql:ro
-      - ../backend/migrations/20261020_order_dispute.sql:/docker-entrypoint-initdb.d/04-disputes.sql:ro
-      - ../backend/migrations/20261020_operations_indexes.sql:/docker-entrypoint-initdb.d/05-operations-index.sql:ro
+      # Current runningerrands.sql ALREADY includes campus, storefront, disputes,
+      # and operations index DDL. Re-running the 20261020 once-only ALTER
+      # migrations on a FRESH volume aborts MySQL init before agent tables.
       - ../backend/migrations/20261021_agent_operation.sql:/docker-entrypoint-initdb.d/06-agent-operation.sql:ro
       - ../backend/migrations/20261021_agent_walk_network.sql:/docker-entrypoint-initdb.d/07-agent-walking.sql:ro
     healthcheck:

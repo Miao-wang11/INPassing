@@ -50,8 +50,12 @@ campus pedestrian data, weight/queues/time assumptions.
    and set `SHUNSHOU_AI_INTERNAL_TOKEN` (same value injected into backend
    and Python; NEVER commit .env).
 2. Set unique strong MySQL/JWT/admin passwords.
-3. **New empty DB volume**: ordered migration mounts run automatically once,
-   AFTER the original `runningerrands.sql`, via MySQL Docker init.
+3. **New empty DB volume**: `runningerrands.sql` already includes campus,
+   service storefront, dispute and operations indexes. Docker MySQL applies
+   the base schema ONCE, followed by **only** `20261021_agent_operation.sql`
+   and `20261021_agent_walk_network.sql`. The earlier `20261020` migrations
+   MUST NOT be applied twice on a new database: they contain once-only ALTER
+   statements and will interrupt initialization.
    **Existing volume**: these init scripts do not run again. Back up first
    and apply migrations `20261020_campus_scope.sql`,
    `20261020_service_offer_booking.sql`, `20261020_order_dispute.sql`,

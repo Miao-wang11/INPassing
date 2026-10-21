@@ -95,7 +95,10 @@ business integration and controlled transactions, not an invented ML gain.
 
 ## Reproducibility and deployment
 
-Apply the one-time migrations in `docs/agent/phase5-uniapp-deploy.md` only
+For a fresh volume, use the embedded base schema then only the 20261021
+Agent migration pair. The older 20261020 migrations are for EXISTING older
+databases, not fresh init. Apply the one-time migrations in
+`docs/agent/phase5-uniapp-deploy.md` only
 after backing up a real database; never rerun `backend/runningerrands.sql`
 on an existing volume. To start a local, nonproduction demo, use
 `docker/.env.example` as a template, generate the shared HMAC secret and
