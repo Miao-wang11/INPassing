@@ -24,7 +24,7 @@ def exercise():
             assert isinstance(doc, dict)
             if ok:
                 assert res.status_code == 200 and doc.get("code") == 1, (
-                    path, res.status_code, doc.get("code"))
+                    path, res.status_code, doc.get("code"), str(doc.get("msg", ""))[:100])
                 return doc.get("data")
             assert res.status_code >= 400 or doc.get("code") != 1, (
                 "Unexpected successful forbidden operation", path)

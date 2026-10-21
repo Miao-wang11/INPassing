@@ -37,8 +37,11 @@ Spring Boot 3 / Java 21 + MyBatis-Plus + MySQL 8 + Redis + Vue 3 管理后台 + 
     REDIS_PORT=6381
     BACKEND_PORT=8080
     NGINX_PORT=80
-    SHUNSHOU_DEMO_SEED=true
+    SHUNSHOU_DEMO_SEED=false
+    SHUNSHOU_AI_INTERNAL_TOKEN=自行生成64位随机十六进制字符串
 
+若需要演示账号，在**隔离的一次性数据库**中额外启用 SHUNSHOU_DEMO_SEED=true，
+并在不上传 Git 的 docker/.env 中配置 SHUNSHOU_DEMO_PASSWORD=自行生成6位随机数字。
 SHUNSHOU_DEMO_SEED=true **仅适合隔离的本地演示**，会生成演示学校与学生。无演示需求设为 false。阿里云、微信、腾讯地图密钥在本地演示可以先留空，但短信、OSS 上传、微信授权与地图相关功能将受到限制。
 
 仍在 docker 目录运行：
@@ -48,7 +51,10 @@ SHUNSHOU_DEMO_SEED=true **仅适合隔离的本地演示**，会生成演示学�
     docker compose ps
     docker compose logs -f backend
 
-退出日志跟踪按 Ctrl+C，不会停掉容器。完整镜像构建会重新编译 Vue 管理端和 Java 后端。
+退出日志跟踪按 Ctrl+C，不会停掉容器。完整镜像构建会重新编译 Vue 管理端和 Java 后端，并启动内部 Python Agent。
+Python 8000 端口不对外映射。MySQL 全新数据卷以 `backend/runningerrands.sql`
+初始化（该脚本已包含校区、服务橱窗与售后），只额外运行两份
+`20261021_agent_*.sql`。已有数据卷不要再次执行建库脚本或重复迁移。
 
 ### 服务访问
 
@@ -61,7 +67,7 @@ SHUNSHOU_DEMO_SEED=true **仅适合隔离的本地演示**，会生成演示学�
 
 若本机 80 端口被占用，在 .env 改为 NGINX_PORT=8088，管理后台改访问 http://localhost:8088/api/ 。同理可以改变宿主机的 MYSQL_PORT、REDIS_PORT、BACKEND_PORT。
 
-**演示账号**（仅 SHUNSHOU_DEMO_SEED=true）：testuser、testuser2（东校区），testuser3（西校区），登录密码均为 123456。已设支付密码的演示账号使用 123456，仅模拟业务。管理员账号为 ADMIN_USERNAME 和你设置的 ADMIN_PASSWORD。
+**演示账号**（仅 SHUNSHOU_DEMO_SEED=true）：testuser、testuser2（东校区），testuser3（西校区），登录和模拟支付密码均使用本地 `.env` 中的 `SHUNSHOU_DEMO_PASSWORD`，不再使用仓库公开的默认密码。管理员账号为 ADMIN_USERNAME 和你设置的 ADMIN_PASSWORD。
 
 注意：管理员由后端在数据库首次创建；数据库已存在账号时，修改 .env 不会重置其密码。同样，改变 .env 的 MYSQL_ROOT_PASSWORD 不会修改已存在数据卷中的 MySQL 密码。
 
