@@ -61,7 +61,7 @@ public class AgentReadOnlyService {
         return safeText(value);
     }
     private TaskCard toTask(TaskListVO t, Long campusId) {
-        if (!campusId.equals(t.getCampusId()) || t.getStatus() != StatusConstant.TASK_WAITING) {
+        if (!campusId.equals(t.getCampusId()) || !Objects.equals(t.getStatus(), StatusConstant.TASK_WAITING)) {
             throw new ForbiddenException("候选任务校区或状态不合法");
         }
         return new TaskCard(t.getTaskId(), t.getType(), t.getSubType(),
@@ -107,6 +107,34 @@ public class AgentReadOnlyService {
         return campuses.listActive().stream().filter(c -> c.campusId().equals(id))
                 .map(c -> new CampusPlace(c.campusId(), c.campusName(), c.schoolId(), c.schoolName(), false))
                 .toList();
+    }
+
+
+    /** Detailed PUBLIC candidate only. Do not expose private notes, pickup codes or direct contacts. */
+    @Transactional(readOnly = true)
+    public TaskCard taskDetail(Long uid, Long taskId) {
+        Long campusId = campuses.requireUserCampus(uid);
+        Task t = taskMapper.selectById(taskId);
+        if (t == null || !campusId.equals(t.getCampusId()) || t.getReservedRunnerId() != null
+                || uid.equals(t.getPublisherId())
+                || !Objects.equals(t.getStatus(), StatusConstant.TASK_WAITING)
+                || t.getExpireTime() == null || !t.getExpireTime().isAfter(LocalDateTime.now())) {
+            throw new ForbiddenException("公开任务不存在或已失效");
+        }
+        return new TaskCard(t.getId(), t.getType(), t.getSubType(), safeText(t.getPublicDesc()),
+                coarseArea(t.getPickupAddress()), coarseArea(t.getDeliveryAddress()),
+                t.getReward(), t.getTip(), t.getDeliveryFee(), t.getProductCost(), t.getExpireTime());
+    }
+
+    @Transactional(readOnly = true)
+    public OfferCard offerDetail(Long uid, Long offerId) {
+        Long campusId = campuses.requireUserCampus(uid);
+        ServiceOfferService.OfferView v = offers.detail(uid, offerId);
+        if (!campusId.equals(v.campusId()) || v.status() != 1) {
+            throw new ForbiddenException("服务不存在或已失效");
+        }
+        return new OfferCard(v.id(), v.category(), v.subType(), safeText(v.title()),
+                safeText(v.description()), v.servicePrice(), v.availableFrom(), v.availableUntil());
     }
 
     /** A read-only preview. Not a reservation: acceptOrder rechecks and may create a profile. */

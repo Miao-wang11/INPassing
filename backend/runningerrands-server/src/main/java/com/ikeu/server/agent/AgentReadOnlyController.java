@@ -50,6 +50,17 @@ public class AgentReadOnlyController {
         return Result.success(service.offers(BaseContext.getCurrentId(), category, page, size));
     }
 
+
+    @GetMapping("/tasks/{taskId}")
+    public Result<AgentReadOnlyService.TaskCard> taskDetail(@PathVariable @Min(1) Long taskId) {
+        return Result.success(service.taskDetail(BaseContext.getCurrentId(), taskId));
+    }
+
+    @GetMapping("/offers/{offerId}")
+    public Result<AgentReadOnlyService.OfferCard> offerDetail(@PathVariable @Min(1) Long offerId) {
+        return Result.success(service.offerDetail(BaseContext.getCurrentId(), offerId));
+    }
+
     @GetMapping("/campus")
     public Result<List<AgentReadOnlyService.CampusPlace>> campus() {
         return Result.success(service.campus(BaseContext.getCurrentId()));

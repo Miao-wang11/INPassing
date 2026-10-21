@@ -62,4 +62,27 @@ class AgentReadOnlyServiceTest {
         task.setCampusId(8L);
         assertThrows(ForbiddenException.class, () -> service.eligibility(3L, 22L));
     }
+    @Test
+    void publicDetailRejectsReservedTasksAndHidesPrivateFields() {
+        var campuses = mock(CampusCatalogService.class);
+        var mapper = mock(TaskMapper.class);
+        var service = new AgentReadOnlyService(campuses, mock(TaskService.class),
+                mock(ServiceOfferService.class), mock(RunnerProfileMapper.class), mapper, mock(UserMapper.class));
+        when(campuses.requireUserCampus(3L)).thenReturn(7L);
+        var task = Task.builder().id(88L).campusId(7L).publisherId(4L).status(1)
+                .privateNote("do-not-leak").pickupCode("1234").contactPhone("13800138000")
+                .publicDesc("公开打印任务").pickupAddress("宿舍楼 301室")
+                .deliveryAddress("图书馆").expireTime(LocalDateTime.now().plusHours(1)).build();
+        when(mapper.selectById(88L)).thenReturn(task);
+        var detail = service.taskDetail(3L, 88L);
+        assertEquals("公开打印任务", detail.publicDesc());
+        assertFalse(detail.pickupArea().contains("301"));
+        assertFalse(detail.toString().contains("do-not-leak"));
+        assertFalse(detail.toString().contains("13800138000"));
+        task.setReservedRunnerId(5L);
+        assertThrows(ForbiddenException.class, () -> service.taskDetail(3L, 88L));
+        task.setReservedRunnerId(null);
+        task.setCampusId(9L);
+        assertThrows(ForbiddenException.class, () -> service.taskDetail(3L, 88L));
+    }
 }

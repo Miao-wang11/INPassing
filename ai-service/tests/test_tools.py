@@ -102,3 +102,30 @@ async def test_python_tool_http_integration_and_reject_bad_java_schema(settings)
                 assert "DO-NOT-LEAK" not in bad.text
                 # Tampering with the principal or requesting without signature never reaches Java.
                 assert (await caller.get("/internal/v1/tools/offers")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_details_are_typed_and_untrusted_java_fields_fail_closed(settings):
+    from app.tools.read_only import build_read_only_tools
+    wire = WireSecurity(settings)
+    actor = wire.verify_principal(principal(settings.internal_token.get_secret_value(), 3, 7))
+    def handler(req):
+        if req.url.path.endswith("/offers/7"):
+            return httpx.Response(200, json={"code": 1, "data": {
+                "offerId": 7, "category": "校内代办", "title": "资料打印",
+                "description": "黑白打印", "servicePrice": 3,
+                "availableFrom": "2026-10-21T09:00:00", "availableUntil": "2026-10-22T18:00:00"
+            }})
+        return httpx.Response(200, json={"code": 1, "data": {
+            "taskId": 42, "type": "校内代办", "publicDesc": "打印资料",
+            "pickupArea": "图书馆", "deliveryArea": "教学楼", "reward": 10,
+            "privateNote": "must never pass through"
+        }})
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler),
+                                 base_url="http://java.test/api/") as transport:
+        tools = {t.name: t for t in build_read_only_tools(JavaReadOnlyClient(transport, wire), actor)}
+        result = await tools["get_service_offer_detail"].ainvoke({"offer_id": 7})
+        assert result["offerId"] == 7
+        with pytest.raises(Exception) as exc:
+            await tools["get_public_task_detail"].ainvoke({"task_id": 42})
+        assert "must never pass through" not in str(exc.value)

@@ -76,6 +76,22 @@ def build_read_only_tools(java: JavaReadOnlyClient, actor: Actor):
                                   {"category": category or None, "page": page, "size": size}, OfferCard)
 
     @tool
+    async def get_public_task_detail(task_id: int) -> dict:
+        """Fetch an active PUBLIC task without private codes or contacts."""
+        if task_id <= 0:
+            raise ValueError("invalid task ID")
+        data = await java.get(f"/internal/agent/v1/tasks/{task_id}", actor)
+        return TaskCard.model_validate(data).model_dump(mode="json")
+
+    @tool
+    async def get_service_offer_detail(offer_id: int) -> dict:
+        """Fetch an active same-campus service offer; no booking or payment."""
+        if offer_id <= 0:
+            raise ValueError("invalid offer ID")
+        data = await java.get(f"/internal/agent/v1/offers/{offer_id}", actor)
+        return OfferCard.model_validate(data).model_dump(mode="json")
+
+    @tool
     async def get_campus_catalog() -> list[dict]:
         """Read only the authenticated user's campus; this is NOT a building coordinate dictionary."""
         data = await java.get("/internal/agent/v1/campus", actor)
@@ -98,5 +114,6 @@ def build_read_only_tools(java: JavaReadOnlyClient, actor: Actor):
         return {"canAttempt": data["canAttempt"], "reason": str(data.get("reason", "")),
                 "finalCheckRequired": True}
 
-    return [search_public_tasks, filter_public_tasks, list_service_offers,
+    return [search_public_tasks, filter_public_tasks, get_public_task_detail,
+            list_service_offers, get_service_offer_detail,
             get_campus_catalog, check_accept_eligibility]

@@ -1,5 +1,6 @@
 """Signed, strictly read-only Java client with typed failure categories."""
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -27,10 +28,8 @@ class JavaReadOnlyClient:
         self.wire = wire
 
     async def get(self, path: str, actor: Actor, params: dict[str, Any] | None = None):
-        if path not in _READ_PATHS and not (
-            path.startswith("/internal/agent/v1/tasks/")
-            and path.endswith("/eligibility")
-            and path.removeprefix("/internal/agent/v1/tasks/").removesuffix("/eligibility").strip("/").isdigit()
+        if path not in _READ_PATHS and not re.fullmatch(
+            r"/internal/agent/v1/(?:tasks/[1-9][0-9]*(?:/eligibility)?|offers/[1-9][0-9]*)", path
         ):
             raise JavaToolError("TOOL_NOT_ALLOWED")
         clean_params = {k: v for k, v in (params or {}).items() if v is not None}

@@ -151,6 +151,16 @@ def create_app(settings: Settings | None = None, *, graph_override=None,
         return await call_tool(request, actor, "list_service_offers",
                                {"category": category, "page": page, "size": size})
 
+    @app.get("/internal/v1/tools/tasks/{task_id}")
+    async def task_detail(task_id: int, request: Request,
+                          actor: Annotated[Actor, Depends(require_actor)]):
+        return await call_tool(request, actor, "get_public_task_detail", {"task_id": task_id})
+
+    @app.get("/internal/v1/tools/offers/{offer_id}")
+    async def offer_detail(offer_id: int, request: Request,
+                           actor: Annotated[Actor, Depends(require_actor)]):
+        return await call_tool(request, actor, "get_service_offer_detail", {"offer_id": offer_id})
+
     @app.get("/internal/v1/tools/campus")
     async def campus(request: Request, actor: Annotated[Actor, Depends(require_actor)]):
         return await call_tool(request, actor, "get_campus_catalog", {})
