@@ -15,6 +15,8 @@ _READ_PATHS = frozenset({
     "/internal/agent/v1/tasks/filter",
     "/internal/agent/v1/offers",
     "/internal/agent/v1/campus",
+    "/internal/agent/v1/matching/candidates",
+    "/internal/agent/v1/matching/network",
 })
 
 

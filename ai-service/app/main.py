@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from app.clients.java_backend import JavaReadOnlyClient, JavaToolError
 from app.config import Settings
 from app.agent.delegation import DemandExtractor, build_delegation_graph
+from app.agent.route_matching import RouteExtractor, build_route_graph
 from app.graph import build_graph
 from app.models import build_responder
 from app.security import Actor, NonceGuard, WireSecurity, require_actor
@@ -40,6 +41,23 @@ class ChatResponse(BaseModel):
     answer: str
     turns: int
     status: str
+
+
+class RouteRequest(BaseModel):
+    message: str = Field(default="", max_length=2000)
+    session_id: uuid.UUID | None = None
+    task_id: int | None = Field(default=None, gt=0)
+    acknowledge_unverified: bool = False
+
+    @model_validator(mode="after")
+    def validate_action(self):
+        if bool(self.message.strip()) == (self.task_id is not None):
+            raise ValueError("Provide exactly one nonblank message or task selection")
+        if self.task_id is not None and self.session_id is None:
+            raise ValueError("session_id required for selection")
+        if any(word in self.message.lower() for word in ("支付密码", "paypassword", "pay_password")):
+            raise ValueError("Do not enter payment secrets")
+        return self
 
 
 class DelegationRequest(BaseModel):
@@ -70,6 +88,7 @@ def create_app(settings: Settings | None = None, *, graph_override=None,
     async def lifespan(app: FastAPI):
         app.state.wire = WireSecurity(settings)
         app.state.extractor = DemandExtractor(settings)
+        app.state.route_extractor = RouteExtractor(settings)
         app.state.nonces = NonceGuard()
         if java_http_override is not None:
             app.state.java_tools = JavaReadOnlyClient(java_http_override, app.state.wire)
@@ -99,11 +118,11 @@ def create_app(settings: Settings | None = None, *, graph_override=None,
                 yield
         app.state.graph = None
 
-    app = FastAPI(title="ShunShou AI (Phase 3: delegation)", lifespan=lifespan)
+    app = FastAPI(title="ShunShou AI (Phase 4: route matching)", lifespan=lifespan)
 
     @app.get("/healthz")
     async def healthz():
-        return {"status": "ok", "phase": 3}
+        return {"status": "ok", "phase": 4}
 
     @app.get("/readyz")
     async def readyz(request: Request):
@@ -173,6 +192,54 @@ def create_app(settings: Settings | None = None, *, graph_override=None,
         except Exception:
             logger.exception("delegation_graph_failed")
             raise HTTPException(status_code=503, detail="Delegation temporarily unavailable") from None
+
+    @app.post("/internal/v1/route-match")
+    async def route_match(payload: RouteRequest, request: Request,
+                          actor: Annotated[Actor, Depends(require_actor)]):
+        saver = getattr(request.app.state, "delegation_saver", None)
+        if saver is None:
+            raise HTTPException(status_code=503, detail="Checkpoint unavailable")
+        session_id = payload.session_id or uuid.uuid4()
+        graph = build_route_graph(saver, request.app.state.route_extractor,
+                                  request.app.state.java_tools, actor)
+        config = {"configurable": {"thread_id":
+            f"route:user:{actor.user_id}:campus:{actor.campus_id}:session:{session_id}"},
+            "recursion_limit": 8}
+        try:
+            if payload.task_id is not None:
+                snapshot = await graph.aget_state(config)
+                if not snapshot.tasks or not any(t.interrupts for t in snapshot.tasks):
+                    raise HTTPException(status_code=409, detail="No pending task selection")
+                state = await graph.ainvoke(Command(resume={
+                    "task_id": payload.task_id,
+                    "acknowledge_unverified": payload.acknowledge_unverified,
+                }), config=config)
+            else:
+                state = await graph.ainvoke(
+                    {"messages": [HumanMessage(content=payload.message.strip())]}, config=config)
+            if "__interrupt__" in state:
+                pause = state["__interrupt__"][0].value
+                return {
+                    "session_id": session_id, "status": "choose_task",
+                    "answer": "请从已验证或路线待核实的任务中选择；此操作不会自动接单。",
+                    "verified": pause.get("verified", []),
+                    "unverified": pause.get("unverified", []),
+                    "requires_final_java_accept": True,
+                }
+            return {"session_id": session_id, "status": state.get("status"),
+                    "answer": state.get("answer", ""),
+                    "slots": state.get("slots", {}),
+                    "verified": state.get("verified", []),
+                    "unverified": state.get("unverified", []),
+                    "selected": state.get("selected"),
+                    "limitations": state.get("limitations", []),
+                    "model_degraded": state.get("model_degraded", False),
+                    "requires_final_java_accept": state.get("status") == "ready_for_java_accept"}
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception("route_matching_failed")
+            raise HTTPException(status_code=503, detail="Matching temporarily unavailable") from None
 
     async def call_tool(request: Request, actor: Actor, name: str, inputs: dict):
         tools = {tool.name: tool for tool in build_read_only_tools(request.app.state.java_tools, actor)}

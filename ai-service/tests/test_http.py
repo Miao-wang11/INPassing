@@ -41,7 +41,7 @@ async def test_actual_asgi_http_auth_multiturn_and_replay(settings):
     secret = settings.internal_token.get_secret_value()
     async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
-            assert (await client.get("/healthz")).json() == {"status": "ok", "phase": 3}
+            assert (await client.get("/healthz")).json() == {"status": "ok", "phase": 4}
             assert (await client.get("/readyz")).status_code == 200
             path = "/internal/v1/chat"
             payload = {"message": "明天打印30页"}
