@@ -1,6 +1,8 @@
 """Signed, strictly read-only Java client with typed failure categories."""
 import logging
 import re
+import time
+import uuid
 from typing import Any
 
 import httpx
@@ -33,16 +35,28 @@ class JavaReadOnlyClient:
         ):
             raise JavaToolError("TOOL_NOT_ALLOWED")
         clean_params = {k: v for k, v in (params or {}).items() if v is not None}
+        request_id = str(uuid.uuid4())
+        trace_id = actor.trace_id or request_id
+        start = time.monotonic()
+        logger.info("java_readonly_tool_start", extra={
+            "request_id": request_id, "trace_id": trace_id, "tool": path})
         try:
             request = self.client.build_request("GET", path, params=clean_params)
             headers = self.wire.signed_headers("GET", request.url.raw_path.decode("ascii"), actor.principal)
             request.headers.update(headers)
+            request.headers["X-Request-ID"] = request_id
+            request.headers["X-Trace-ID"] = trace_id
             response = await self.client.send(request, follow_redirects=False)
         except httpx.TimeoutException as exc:
+            logger.warning("java_readonly_tool_timeout", extra={"request_id": request_id, "trace_id": trace_id})
             raise JavaToolError("TIMEOUT") from exc
         except httpx.RequestError as exc:
+            logger.warning("java_readonly_tool_unavailable", extra={"request_id": request_id, "trace_id": trace_id})
             raise JavaToolError("BACKEND_UNAVAILABLE") from exc
 
+        logger.info("java_readonly_tool_done", extra={
+            "request_id": request_id, "trace_id": trace_id,
+            "http_status": response.status_code, "latency_ms": round((time.monotonic() - start) * 1000)})
         if response.status_code == 401 or response.status_code == 403:
             raise JavaToolError("UNAUTHORIZED")
         if response.status_code >= 500 or response.is_redirect:

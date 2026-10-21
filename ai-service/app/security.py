@@ -4,6 +4,7 @@ Signed principal is issued by Java from the existing JWT context. Never use mode
 output, request JSON, or a user-id header as the owner of a LangGraph thread.
 """
 import asyncio
+from dataclasses import replace
 import base64
 import hashlib
 import hmac
@@ -27,6 +28,8 @@ class Actor:
     user_id: int
     campus_id: int
     principal: str
+    request_id: str | None = None
+    trace_id: str | None = None
 
 
 class WireSecurity:
@@ -115,6 +118,14 @@ async def require_actor(request: Request) -> Actor:
         actor = wire.verify_request(request.method, path_query, headers, body=await request.body())
         if not await request.app.state.nonces.consume(headers["x-agent-nonce"]):
             raise ValueError("replay")
-        return actor
+        def correlation(name: str) -> str:
+            raw = request.headers.get(name, "")
+            try:
+                return str(uuid.UUID(raw)) if raw else str(uuid.uuid4())
+            except (ValueError, AttributeError):
+                return str(uuid.uuid4())
+        # Correlation fields never affect authorization; principal and request MAC are authoritative.
+        return replace(actor, request_id=correlation("X-Request-ID"),
+                       trace_id=correlation("X-Trace-ID"))
     except (ValueError, KeyError):
         raise HTTPException(status_code=401, detail="Invalid internal authentication") from None

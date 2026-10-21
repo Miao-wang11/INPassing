@@ -3,6 +3,7 @@ package com.ikeu.server.agent;
 import com.ikeu.common.context.BaseContext;
 import com.ikeu.server.service.CampusCatalogService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,7 @@ import java.util.UUID;
  * User-facing Agent entry. Existing user JWT interceptor authenticates /agent/**.
  * It does NOT expose the Python endpoint directly to uni-app.
  */
+@Slf4j
 @RestController
 @RequestMapping("/agent")
 @RequiredArgsConstructor
@@ -52,6 +54,8 @@ public class AgentChatController {
         String path = "/internal/v1/chat";
         String timestamp = Long.toString(Instant.now().getEpochSecond());
         String nonce = UUID.randomUUID().toString();
+        String requestId = UUID.randomUUID().toString();
+        String traceId = UUID.randomUUID().toString();
         String sha256;
         try {
             sha256 = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
@@ -71,15 +75,20 @@ public class AgentChatController {
                     .header("X-Agent-Timestamp", timestamp)
                     .header("X-Agent-Nonce", nonce)
                     .header("X-Agent-Signature", signature)
+                    .header("X-Request-ID", requestId)
+                    .header("X-Trace-ID", traceId)
                     .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
                     .build();
             HttpResponse<String> reply = client.send(request, HttpResponse.BodyHandlers.ofString());
+            log.info("Agent chat proxy status={} requestId={} traceId={}", reply.statusCode(), requestId, traceId);
             return ResponseEntity.status(reply.statusCode()).contentType(MediaType.APPLICATION_JSON).body(reply.body());
         } catch (InterruptedException ex) {
+            log.warn("Agent chat interrupted requestId={} traceId={}", requestId, traceId);
             Thread.currentThread().interrupt();
             return ResponseEntity.status(503).contentType(MediaType.APPLICATION_JSON)
                     .body("{\"code\":0,\"msg\":\"AI service unavailable\"}");
         } catch (Exception ex) {
+            log.warn("Agent chat unavailable requestId={} traceId={}", requestId, traceId);
             // Never echo Python URL or internal exception details.
             return ResponseEntity.status(503).contentType(MediaType.APPLICATION_JSON)
                     .body("{\"code\":0,\"msg\":\"AI service unavailable\"}");
