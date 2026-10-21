@@ -83,6 +83,52 @@ class AgentMysqlIdempotencyIT {
                     String.class,preview.operationId());
             assertFalse(stored.contains("test-pin"));
             assertFalse(stored.contains(preview.confirmToken()));
+
+            // Same operation cannot be confirmed by another authenticated student.
+            when(campus.requireUserCampus(2L)).thenReturn(7L);
+            assertThrows(com.ikeu.common.exception.ForbiddenException.class,
+                    () -> tx.execute(st -> drafts.confirm(2L,
+                            preview.operationId(), preview.confirmToken(), "test-pin")));
+
+            // Expired draft cannot debit or publish.
+            var expired = tx.execute(st -> drafts.prepare(1L,input));
+            db.update("UPDATE agent_operation SET expires_at=? WHERE operation_id=?",
+                    java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Shanghai")).minusMinutes(1),
+                    expired.operationId());
+            assertThrows(com.ikeu.common.exception.BusinessException.class,
+                    () -> tx.execute(st -> drafts.confirm(1L,
+                            expired.operationId(), expired.confirmToken(), "test-pin")));
+            assertEquals(1, execution.get());
+
+            // Original Java business failure rolls back, leaving draft PREPARED.
+            var retryable = tx.execute(st -> drafts.prepare(1L,input));
+            when(tasks.publishTask(eq(1L), any()))
+                    .thenThrow(new com.ikeu.common.exception.BusinessException("simulated wallet failure"));
+            assertThrows(com.ikeu.common.exception.BusinessException.class,
+                    () -> tx.execute(st -> drafts.confirm(1L,
+                            retryable.operationId(), retryable.confirmToken(), "test-pin")));
+            assertEquals("PREPARED", db.queryForObject(
+                    "SELECT status FROM agent_operation WHERE operation_id=?",
+                    String.class, retryable.operationId()));
+
+            // Quote change must fail BEFORE invoking original booking.
+            var start = java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Shanghai")).minusMinutes(5);
+            var until = start.plusDays(1);
+            when(offers.detail(1L, 7L)).thenReturn(
+                    new ServiceOfferService.OfferView(7L,3L,7L,"provider","校内代办",
+                            "资料打印","打印","打印机",
+                            new BigDecimal("4.00"),start,until,1),
+                    new ServiceOfferService.OfferView(7L,3L,7L,"provider","校内代办",
+                            "资料打印","打印","打印机",
+                            new BigDecimal("5.00"),start,until,1));
+            var offerDraft = new AgentDraftService.DraftInput("SERVICE_OFFER", null,
+                    new AgentDraftService.OfferInput(7L, "打印室", 10L, BigDecimal.ZERO, null));
+            var offerPrepared = tx.execute(st -> drafts.prepare(1L,offerDraft));
+            assertThrows(com.ikeu.common.exception.BusinessException.class,
+                    () -> tx.execute(st -> drafts.confirm(1L,
+                            offerPrepared.operationId(),offerPrepared.confirmToken(),"pin")));
+            verify(offers, never()).book(anyLong(), anyLong(),
+                    any(ServiceOfferService.BookingForm.class), any(BigDecimal.class));
         } finally {
             pool.shutdownNow();
         }

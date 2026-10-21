@@ -5,7 +5,9 @@ CREATE TABLE IF NOT EXISTS agent_operation (
   user_id BIGINT NOT NULL,
   campus_id BIGINT NOT NULL,
   mode VARCHAR(16) NOT NULL,
-  payload_json JSON NOT NULL,
+  -- Preserve exact JSON bytes for cryptographic payload hash checks.
+  -- MySQL JSON datatype rewrites key order/whitespace, so use validated LONGTEXT.
+  payload_json LONGTEXT NOT NULL,
   payload_hash CHAR(64) NOT NULL,
   confirm_token_hash CHAR(64) NOT NULL,
   quoted_service_fee DECIMAL(10,2) NOT NULL,
@@ -19,6 +21,7 @@ CREATE TABLE IF NOT EXISTS agent_operation (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   KEY idx_agent_operation_owner (user_id, campus_id, created_at),
   KEY idx_agent_operation_expiration (status, expires_at),
+  CONSTRAINT chk_agent_payload_json CHECK (JSON_VALID(payload_json)),
   CONSTRAINT chk_agent_mode CHECK (mode IN ('PUBLIC_TASK','SERVICE_OFFER')),
   CONSTRAINT chk_agent_status CHECK (status IN ('PREPARED','SUCCEEDED'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
