@@ -1,7 +1,7 @@
-name: Agent Phases 1-5 CI
+name: Agent Phases 1-6 CI
 on:
   push:
-    branches: [feat/agent-phase1-skeleton, feat/agent-phase2-readonly-tools, feat/agent-phase3-delegation, feat/agent-phase4-route-matching, feat/agent-phase5-uniapp-compose]
+    branches: [feat/agent-phase1-skeleton, feat/agent-phase2-readonly-tools, feat/agent-phase3-delegation, feat/agent-phase4-route-matching, feat/agent-phase5-uniapp-compose, feat/agent-phase6-evaluation-delivery]
     paths:
       - 'ai-service/**'
       - '.github/workflows/agent-phase1.yml'
@@ -16,6 +16,9 @@ on:
       - 'ai-service/**'
       - '.github/workflows/agent-phase1.yml'
       - 'backend/**'
+      - 'mobile/**'
+      - 'docker/**'
+      - 'docs/agent/**'
 permissions:
   contents: read
 jobs:
@@ -37,6 +40,7 @@ jobs:
         run: |
           python -m compileall -q app tests
           pytest -q
+          python -m compileall -q app/evaluation.py
   java-regression:
     runs-on: ubuntu-latest
     services:
@@ -90,6 +94,7 @@ jobs:
   compose-smoke:
     runs-on: ubuntu-latest
     env:
+      SHUNSHOU_DEMO_SEED: 'true'
       SHUNSHOU_AI_INTERNAL_TOKEN: ci-stage5-only-generated-not-real-secret-0123456789abcdef
     steps:
       - uses: actions/checkout@v4
@@ -145,6 +150,15 @@ jobs:
                   assert error.code == 401, (url, error.code)
           print('Unsigned internal and missing-JWT user HTTP requests denied')
           PY
+      - name: Genuine simulated-wallet Agent transaction on fresh demo database
+        run: |
+          docker compose --env-file docker/.env.example -f docker/docker-compose.yml \
+            exec -T -e SHUNSHOU_E2E_DISPOSABLE=1 ai-service \
+            python - < ai-service/tests/integration/compose_simulated_wallet.py
+      - name: Collect disposable integration backend errors on failure
+        if: failure()
+        run: |
+          docker compose --env-file docker/.env.example -f docker/docker-compose.yml logs --tail=180 backend mysql ai-service
       - name: Teardown isolated CI volumes
         if: always()
         run: docker compose --env-file docker/.env.example -f docker/docker-compose.yml down -v --remove-orphans
