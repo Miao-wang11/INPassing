@@ -152,6 +152,10 @@ jobs:
           docker compose --env-file docker/.env.example -f docker/docker-compose.yml \
             exec -T -e SHUNSHOU_E2E_DISPOSABLE=1 ai-service \
             python - < ai-service/tests/integration/compose_simulated_wallet.py
+      - name: Collect disposable integration backend errors on failure
+        if: failure()
+        run: |
+          docker compose --env-file docker/.env.example -f docker/docker-compose.yml logs --tail=180 backend mysql ai-service
       - name: Teardown isolated CI volumes
         if: always()
         run: docker compose --env-file docker/.env.example -f docker/docker-compose.yml down -v --remove-orphans
