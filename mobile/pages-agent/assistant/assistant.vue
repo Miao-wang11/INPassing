@@ -292,70 +292,78 @@ async function checkReceipt() {
 }
 async function confirmDraft() {
   if (busy.value || !quoteIsReady(prepared.value)) return
-  const approved = await askModal('明确确认模拟预付',
-    '业务：' + prepared.value.description + '\n总额 ¥'
-    + moneyText(prepared.value.total) + '\n确认后才由 Java 校验支付密码和执行原业务。')
-  if (!approved || busy.value) return
-  const password = await promptPayPassword('模拟预付 ¥' + moneyText(prepared.value.total))
-  if (!password || busy.value) return
-  busy.value = true
+  busy.value = true // Guard starts BEFORE either modal opens: no double-click confirm.
   try {
-    // Password is sent ONLY in authenticated Java HTTP request, not to Agent or local storage.
-    const receipt = await agentApi.confirmDelegation(
-      prepared.value.operationId, prepared.value.confirmToken, password)
-    if (receiptIsSuccessful(receipt)) {
-      appendAgent('委托成功！任务 ID：' + receipt.taskId
-        + (receipt.orderId ? '，订单 ID：' + receipt.orderId : ''))
-      prepared.value = null
-    } else {
-      appendAgent('确认结果未知，先查询 Java 操作状态，不要创建新草稿。')
+    const draft = prepared.value
+    const approved = await askModal('明确确认模拟预付',
+      '业务：' + draft.description + '\n总额 ¥'
+      + moneyText(draft.total) + '\n确认后才由 Java 校验支付密码和执行原业务。')
+    if (!approved) return
+    const password = await promptPayPassword('模拟预付 ¥' + moneyText(draft.total))
+    if (!password) return
+    try {
+      // Password is sent ONLY to JWT-protected Java, never model or localStorage.
+      const receipt = await agentApi.confirmDelegation(
+        draft.operationId, draft.confirmToken, password)
+      if (receiptIsSuccessful(receipt)) {
+        appendAgent('委托成功！任务 ID：' + receipt.taskId
+          + (receipt.orderId ? '，订单 ID：' + receipt.orderId : ''))
+        prepared.value = null
+      } else {
+        appendAgent('确认结果未知，先查询 Java 操作状态，不要创建新草稿。')
+      }
+    } catch (e) {
+      appendAgent('确认请求未得到可靠成功响应，可能已提交。请查询同一个草稿的状态。')
     }
-  } catch (e) {
-    appendAgent('确认请求未得到可靠成功响应，可能已提交。请查询同一个草稿的状态。')
   } finally { busy.value = false }
 }
 
 async function chooseTask(item) {
   if (busy.value || status.value !== 'choose_task' || !session.value) return
-  let acknowledge = false
-  if (!isVerifiedMatch(item)) {
-    acknowledge = await askModal('路线没有核实',
-      '该任务没有可信的绕路时间和评分，也不保证重量适合携带。要继续选择吗？')
-    if (!acknowledge) return
-  }
   busy.value = true
   try {
-    const data = validateAgentReply(await agentApi.talkRoute({
-      session_id: session.value, task_id: Number(item.taskId),
-      acknowledge_unverified: acknowledge,
-    }))
-    applyReply(data)
-  } catch (e) {
-    appendAgent('任务选择失败，请刷新候选列表；尚未接单。')
+    let acknowledge = false
+    if (!isVerifiedMatch(item)) {
+      acknowledge = await askModal('路线没有核实',
+        '该任务没有可信的绕路时间和评分，也不保证重量适合携带。要继续选择吗？')
+      if (!acknowledge) return
+    }
+    try {
+      const data = validateAgentReply(await agentApi.talkRoute({
+        session_id: session.value, task_id: Number(item.taskId),
+        acknowledge_unverified: acknowledge,
+      }))
+      applyReply(data)
+    } catch (e) {
+      appendAgent('任务选择失败，请刷新候选列表；尚未接单。')
+    }
   } finally { busy.value = false }
 }
+
 async function acceptTask() {
   if (busy.value || !selectedTask.value) return
-  const task = selectedTask.value
-  const ok = await askModal('最后确认抢单',
-    '任务 #' + task.taskId + '\n' + task.pickupArea + ' → ' + task.deliveryArea
-    + '\n以 Java 实时资格、状态和库存判断为准。')
-  if (!ok || busy.value) return
-  busy.value = true
+  busy.value = true // Prevent multiple modals and duplicate explicit accept commands.
   try {
-    const res = await agentApi.acceptSuggestedTask(task.taskId)
-    if (!Number.isInteger(Number(res?.orderId)) || Number(res.orderId) <= 0)
-      throw new Error('No authoritative Java order ID')
-    selectedTask.value = null
-    appendAgent('接单成功！订单 ID：' + res.orderId)
-    uni.navigateTo({ url: '/pages-order/order-delivering/order-delivering?taskId='
-      + task.taskId + '&role=runner' })
-  } catch (e) {
-    selectedTask.value = null
-    verified.value = []
-    unverified.value = []
-    status.value = 'stale'
-    appendAgent('任务可能已被抢走、失效或接单资格变化。请发起新的推荐查询；未确认成功订单。')
+    const task = selectedTask.value
+    const ok = await askModal('最后确认抢单',
+      '任务 #' + task.taskId + '\n' + task.pickupArea + ' → ' + task.deliveryArea
+      + '\n以 Java 实时资格、状态和库存判断为准。')
+    if (!ok) return
+    try {
+      const res = await agentApi.acceptSuggestedTask(task.taskId)
+      if (!Number.isInteger(Number(res?.orderId)) || Number(res.orderId) <= 0)
+        throw new Error('No authoritative Java order ID')
+      selectedTask.value = null
+      appendAgent('接单成功！订单 ID：' + res.orderId)
+      uni.navigateTo({ url: '/pages-order/order-delivering/order-delivering?taskId='
+        + task.taskId + '&role=runner' })
+    } catch (e) {
+      selectedTask.value = null
+      verified.value = []
+      unverified.value = []
+      status.value = 'stale'
+      appendAgent('任务可能已被抢走、失效或接单资格变化。请发起新的推荐查询；未确认成功订单。')
+    }
   } finally { busy.value = false }
 }
 </script>
