@@ -106,6 +106,42 @@ jobs:
           done
           docker compose --env-file docker/.env.example -f docker/docker-compose.yml logs --tail=80 mysql ai-service
           exit 1
+      - name: Build existing Spring Boot and Nginx images
+        run: docker compose --env-file docker/.env.example -f docker/docker-compose.yml build backend nginx
+      - name: Start complete stack and check internal authorization over real TCP
+        run: |
+          docker compose --env-file docker/.env.example -f docker/docker-compose.yml up -d backend nginx
+          for attempt in $(seq 1 30); do
+            if docker compose --env-file docker/.env.example -f docker/docker-compose.yml exec -T ai-service \
+              python -c "import json,urllib.request; x=json.load(urllib.request.urlopen('http://backend:8080/api/actuator/health', timeout=3)); assert x.get('status')=='UP', x"; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              docker compose --env-file docker/.env.example -f docker/docker-compose.yml logs --tail=100 backend mysql
+              exit 1
+            fi
+            sleep 4
+          done
+          # Check both authenticated boundary paths; never use model-derived identity.
+          docker compose --env-file docker/.env.example -f docker/docker-compose.yml exec -T ai-service python - <<'PY'
+          import urllib.error
+          import urllib.request
+          cases = [
+              ('http://backend:8080/api/internal/agent/v1/matching/candidates', 'GET'),
+              ('http://backend:8080/api/agent/route-match', 'POST'),
+          ]
+          for url, method in cases:
+              body = b'{}' if method == 'POST' else None
+              request = urllib.request.Request(url, data=body, method=method)
+              if method == 'POST':
+                  request.add_header('Content-Type', 'application/json')
+              try:
+                  urllib.request.urlopen(request, timeout=3)
+                  raise AssertionError('unsigned request unexpectedly accepted: ' + url)
+              except urllib.error.HTTPError as error:
+                  assert error.code == 401, (url, error.code)
+          print('Unsigned internal and missing-JWT user HTTP requests denied')
+          PY
       - name: Teardown isolated CI volumes
         if: always()
         run: docker compose --env-file docker/.env.example -f docker/docker-compose.yml down -v --remove-orphans
