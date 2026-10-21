@@ -1,7 +1,7 @@
-name: Agent Phases 1-5 CI
+name: Agent Phases 1-6 CI
 on:
   push:
-    branches: [feat/agent-phase1-skeleton, feat/agent-phase2-readonly-tools, feat/agent-phase3-delegation, feat/agent-phase4-route-matching, feat/agent-phase5-uniapp-compose]
+    branches: [feat/agent-phase1-skeleton, feat/agent-phase2-readonly-tools, feat/agent-phase3-delegation, feat/agent-phase4-route-matching, feat/agent-phase5-uniapp-compose, feat/agent-phase6-evaluation-delivery]
     paths:
       - 'ai-service/**'
       - '.github/workflows/agent-phase1.yml'
@@ -13,6 +13,9 @@ on:
       - 'ai-service/**'
       - '.github/workflows/agent-phase1.yml'
       - 'backend/**'
+      - 'mobile/**'
+      - 'docker/**'
+      - 'docs/agent/**'
 permissions:
   contents: read
 jobs:
@@ -34,6 +37,7 @@ jobs:
         run: |
           python -m compileall -q app tests
           pytest -q
+          python -m compileall -q app/evaluation.py
   java-regression:
     runs-on: ubuntu-latest
     services:
