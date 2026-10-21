@@ -45,6 +45,8 @@ not just one synthetic example.
 
 ## Required release walkthrough (not yet complete)
 
+- [ ] Verify the fresh Compose database has the Agent operation and walk tables after init. Historical `20261020` ALTER scripts must **not** run after the full `runningerrands.sql`; use a backup and schema-specific migration check for existing volumes.
+
 - [ ] In an isolated sandbox, complete Java, Python, MySQL and Redis
       startup and valid signed Java↔Python chat exchange for a certified
       mock/test student account; verify old task hall and service storefront.
