@@ -1,18 +1,22 @@
-name: Agent Phases 1-5 CI
+name: Agent Phases 1-6 CI
 on:
   push:
-    branches: [feat/agent-phase1-skeleton, feat/agent-phase2-readonly-tools, feat/agent-phase3-delegation, feat/agent-phase4-route-matching, feat/agent-phase5-uniapp-compose]
+    branches: [feat/agent-phase1-skeleton, feat/agent-phase2-readonly-tools, feat/agent-phase3-delegation, feat/agent-phase4-route-matching, feat/agent-phase5-uniapp-compose, feat/agent-phase6-evaluation-handoff]
     paths:
       - 'ai-service/**'
       - '.github/workflows/agent-phase1.yml'
       - 'backend/**'
       - 'mobile/**'
       - 'docker/**'
+      - 'docs/agent/**'
   pull_request:
     paths:
       - 'ai-service/**'
       - '.github/workflows/agent-phase1.yml'
       - 'backend/**'
+      - 'mobile/**'
+      - 'docker/**'
+      - 'docs/agent/**'
 permissions:
   contents: read
 jobs:
@@ -34,6 +38,13 @@ jobs:
         run: |
           python -m compileall -q app tests
           pytest -q
+      - name: Compare annotated synthetic route sample to fixed baseline
+        run: python -m app.evaluation --fixture evaluation/synthetic_routes.json --output evaluation/report.json
+      - name: Store synthetic evaluation artifact only
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-route-evaluation
+          path: ai-service/evaluation/report.json
   java-regression:
     runs-on: ubuntu-latest
     services:
@@ -87,9 +98,18 @@ jobs:
   compose-smoke:
     runs-on: ubuntu-latest
     env:
-      SHUNSHOU_AI_INTERNAL_TOKEN: ci-stage5-only-generated-not-real-secret-0123456789abcdef
+      SHUNSHOU_DEMO_SEED: 'true'
     steps:
       - uses: actions/checkout@v4
+      - name: Generate disposable CI secrets, never checked into repository
+        shell: bash
+        run: |
+          secret=$(python3 -c 'import secrets; print(secrets.token_hex(32))')
+          demo_pin=$(python3 -c 'import secrets; print(f"{secrets.randbelow(900000)+100000:06d}")')
+          echo "::add-mask::$secret"
+          echo "::add-mask::$demo_pin"
+          echo "SHUNSHOU_AI_INTERNAL_TOKEN=$secret" >> "$GITHUB_ENV"
+          echo "SHUNSHOU_DEMO_PASSWORD=$demo_pin" >> "$GITHUB_ENV"
       - name: Verify Docker Compose expanded service dependencies
         run: docker compose --env-file docker/.env.example -f docker/docker-compose.yml config --quiet
       - name: Build genuine Python Agent image
@@ -142,6 +162,13 @@ jobs:
                   assert error.code == 401, (url, error.code)
           print('Unsigned internal and missing-JWT user HTTP requests denied')
           PY
+      - name: Real-Java wallet and task integration through signed Python Agent
+        run: |
+          # This runs ONLY against ephemeral CI Compose volumes.
+          docker compose --env-file docker/.env.example -f docker/docker-compose.yml exec -T \
+            -e SHUNSHOU_E2E_ISOLATED=yes \
+            -e SHUNSHOU_E2E_DEMO_PASSWORD="$SHUNSHOU_DEMO_PASSWORD" \
+            ai-service python - < ai-service/tests/e2e_compose.py
       - name: Teardown isolated CI volumes
         if: always()
         run: docker compose --env-file docker/.env.example -f docker/docker-compose.yml down -v --remove-orphans

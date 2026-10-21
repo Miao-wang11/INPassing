@@ -12,6 +12,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -31,7 +32,9 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class DockerTestDataInitializer implements ApplicationRunner {
 
-    private static final String TEST_PASSWORD = "123456";
+    /** Required only for explicitly opted-in, isolated Docker demo seeds. */
+    @Value("${SHUNSHOU_DEMO_PASSWORD:}")
+    private String demoPassword;
 
     private final UserMapper userMapper;
     private final JdbcTemplate jdbcTemplate;
@@ -40,6 +43,11 @@ public class DockerTestDataInitializer implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        // Fail closed if an isolated demo is requested without a generated password.
+        // Never use production accounts or a permanent published default password.
+        if (demoPassword == null || !demoPassword.matches("[0-9]{6}")) {
+            throw new IllegalStateException("SHUNSHOU_DEMO_PASSWORD must be a generated 6-digit demo-only value");
+        }
         // Explicitly demo-only. IDs are reserved for disposable demo data.
         jdbcTemplate.update("INSERT IGNORE INTO school (id,name,status) VALUES (10001,'顺手演示大学',1)");
         jdbcTemplate.update("INSERT IGNORE INTO school_campus (id,school_id,name,status) VALUES (10001,10001,'东校区',1)");
@@ -61,7 +69,7 @@ public class DockerTestDataInitializer implements ApplicationRunner {
 
         User user = User.builder()
                 .username(username)
-                .password(passwordEncoder.encode(TEST_PASSWORD))
+                .password(passwordEncoder.encode(demoPassword))
                 .phone(phone)
                 .nickname(nickname)
                 .avatarUrl("/api/imgs/default_avatar.jpg")
@@ -75,7 +83,7 @@ public class DockerTestDataInitializer implements ApplicationRunner {
                 .build();
 
         if (setPayPassword) {
-            user.setPayPassword(passwordEncoder.encode(TEST_PASSWORD));
+            user.setPayPassword(passwordEncoder.encode(demoPassword));
         }
 
         userMapper.insert(user);

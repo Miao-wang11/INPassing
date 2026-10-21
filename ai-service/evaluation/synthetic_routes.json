@@ -1,0 +1,276 @@
+{
+  "source_type": "synthetic_offline_fixture",
+  "fixture_version": "2026-10-21-v1",
+  "cases": [
+    {
+      "id": "connected_walking_graph",
+      "campus_id": 7,
+      "slots": {
+        "origin": "图书馆",
+        "destination": "三号宿舍",
+        "max_detour_minutes": 10
+      },
+      "network": {
+        "campusId": 7,
+        "routeMode": "VERIFIED_WALK_EDGES_ONLY",
+        "places": [
+          {
+            "id": 1,
+            "name": "图书馆",
+            "aliasesJson": "[]",
+            "verifiedAt": "2026-10-20T10:00:00"
+          },
+          {
+            "id": 2,
+            "name": "三号宿舍",
+            "aliasesJson": "[]",
+            "verifiedAt": "2026-10-20T10:00:00"
+          },
+          {
+            "id": 3,
+            "name": "快递站",
+            "aliasesJson": "[]",
+            "verifiedAt": "2026-10-20T10:00:00"
+          },
+          {
+            "id": 4,
+            "name": "教学楼",
+            "aliasesJson": "[]",
+            "verifiedAt": "2026-10-20T10:00:00"
+          },
+          {
+            "id": 5,
+            "name": "远端餐厅",
+            "aliasesJson": "[]",
+            "verifiedAt": "2026-10-20T10:00:00"
+          }
+        ],
+        "edges": [
+          {
+            "from": 1,
+            "to": 2,
+            "distanceMeters": 600,
+            "verifiedAt": "2026-10-20T10:00:00"
+          },
+          {
+            "from": 1,
+            "to": 3,
+            "distanceMeters": 300,
+            "verifiedAt": "2026-10-20T10:00:00"
+          },
+          {
+            "from": 3,
+            "to": 4,
+            "distanceMeters": 300,
+            "verifiedAt": "2026-10-20T10:00:00"
+          },
+          {
+            "from": 4,
+            "to": 2,
+            "distanceMeters": 300,
+            "verifiedAt": "2026-10-20T10:00:00"
+          },
+          {
+            "from": 3,
+            "to": 5,
+            "distanceMeters": 1300,
+            "verifiedAt": "2026-10-20T10:00:00"
+          },
+          {
+            "from": 5,
+            "to": 2,
+            "distanceMeters": 1300,
+            "verifiedAt": "2026-10-20T10:00:00"
+          }
+        ]
+      },
+      "cards": [
+        {
+          "taskId": 101,
+          "type": "代取快递",
+          "subType": "小件快递",
+          "pickupArea": "快递站",
+          "deliveryArea": "教学楼",
+          "tip": 5,
+          "deliveryFee": 1,
+          "productCost": 0,
+          "reward": 6
+        },
+        {
+          "taskId": 102,
+          "type": "代拿餐食",
+          "pickupArea": "快递站",
+          "deliveryArea": "远端餐厅",
+          "tip": 9,
+          "deliveryFee": 0,
+          "productCost": 100,
+          "reward": 109
+        },
+        {
+          "taskId": 103,
+          "type": "校内代办",
+          "pickupArea": "不明地点",
+          "deliveryArea": "三号宿舍",
+          "tip": 8,
+          "deliveryFee": 0,
+          "productCost": 0,
+          "reward": 8
+        },
+        {
+          "taskId": 104,
+          "type": "校内代办",
+          "pickupArea": "图书馆",
+          "deliveryArea": "三号宿舍",
+          "tip": 2,
+          "deliveryFee": 0,
+          "productCost": 0,
+          "reward": 2
+        }
+      ],
+      "oracle_relevant_ids": [
+        101,
+        104
+      ],
+      "known_unsafe_ids": [
+        102
+      ]
+    },
+    {
+      "id": "no_trusted_route_data",
+      "campus_id": 7,
+      "slots": {
+        "origin": "图书馆",
+        "destination": "三号宿舍",
+        "max_detour_minutes": 10
+      },
+      "network": {
+        "campusId": 7,
+        "places": [],
+        "edges": []
+      },
+      "cards": [
+        {
+          "taskId": 201,
+          "type": "代取快递",
+          "pickupArea": "快递站",
+          "deliveryArea": "教学楼",
+          "tip": 9,
+          "deliveryFee": 0,
+          "reward": 9
+        }
+      ],
+      "oracle_relevant_ids": [],
+      "known_unsafe_ids": [],
+      "oracle_assessed": false
+    },
+    {
+      "id": "tighter_detour_constraint",
+      "campus_id": 7,
+      "slots": {
+        "origin": "图书馆",
+        "destination": "三号宿舍",
+        "max_detour_minutes": 7
+      },
+      "network": {
+        "campusId": 7,
+        "routeMode": "VERIFIED_WALK_EDGES_ONLY",
+        "places": [
+          {
+            "id": 1,
+            "name": "图书馆",
+            "aliasesJson": "[]",
+            "verifiedAt": "2026-10-20T10:00:00"
+          },
+          {
+            "id": 2,
+            "name": "三号宿舍",
+            "aliasesJson": "[]",
+            "verifiedAt": "2026-10-20T10:00:00"
+          },
+          {
+            "id": 3,
+            "name": "快递站",
+            "aliasesJson": "[]",
+            "verifiedAt": "2026-10-20T10:00:00"
+          },
+          {
+            "id": 4,
+            "name": "教学楼",
+            "aliasesJson": "[]",
+            "verifiedAt": "2026-10-20T10:00:00"
+          },
+          {
+            "id": 5,
+            "name": "远端餐厅",
+            "aliasesJson": "[]",
+            "verifiedAt": "2026-10-20T10:00:00"
+          }
+        ],
+        "edges": [
+          {
+            "from": 1,
+            "to": 2,
+            "distanceMeters": 600,
+            "verifiedAt": "2026-10-20T10:00:00"
+          },
+          {
+            "from": 1,
+            "to": 3,
+            "distanceMeters": 300,
+            "verifiedAt": "2026-10-20T10:00:00"
+          },
+          {
+            "from": 3,
+            "to": 4,
+            "distanceMeters": 300,
+            "verifiedAt": "2026-10-20T10:00:00"
+          },
+          {
+            "from": 4,
+            "to": 2,
+            "distanceMeters": 300,
+            "verifiedAt": "2026-10-20T10:00:00"
+          },
+          {
+            "from": 3,
+            "to": 5,
+            "distanceMeters": 1300,
+            "verifiedAt": "2026-10-20T10:00:00"
+          },
+          {
+            "from": 5,
+            "to": 2,
+            "distanceMeters": 1300,
+            "verifiedAt": "2026-10-20T10:00:00"
+          }
+        ]
+      },
+      "cards": [
+        {
+          "taskId": 101,
+          "type": "代取快递",
+          "pickupArea": "快递站",
+          "deliveryArea": "教学楼",
+          "tip": 5,
+          "deliveryFee": 1,
+          "reward": 6
+        },
+        {
+          "taskId": 104,
+          "type": "校内代办",
+          "pickupArea": "图书馆",
+          "deliveryArea": "三号宿舍",
+          "tip": 2,
+          "deliveryFee": 0,
+          "reward": 2
+        }
+      ],
+      "oracle_relevant_ids": [
+        104
+      ],
+      "known_unsafe_ids": [
+        101
+      ]
+    }
+  ]
+}
