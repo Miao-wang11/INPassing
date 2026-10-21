@@ -212,7 +212,8 @@ public class AgentDraftService {
         List<Snapshot> found = jdbc.query(sql, (rs, i) -> new Snapshot(rs.getString(1),
                 rs.getLong(2), rs.getLong(3), rs.getString(4), rs.getString(5),
                 rs.getString(6), rs.getString(7), rs.getBigDecimal(8), rs.getBigDecimal(9), rs.getBigDecimal(10),
-                rs.getTimestamp(11).toLocalDateTime(), rs.getString(12),
+                // Read MySQL DATETIME without timezone shifting via java.sql.Timestamp.
+                rs.getObject(11, LocalDateTime.class), rs.getString(12),
                 (Long) rs.getObject(13), (Long) rs.getObject(14)), opId, idOwner);
         if (found.isEmpty()) throw new ForbiddenException("草稿不存在或不属于当前账号");
         return found.get(0);

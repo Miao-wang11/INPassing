@@ -50,6 +50,7 @@ not just one synthetic example.
 - [ ] In an isolated sandbox, complete Java, Python, MySQL and Redis
       startup and valid signed Java↔Python chat exchange for a certified
       mock/test student account; verify old task hall and service storefront.
+- [ ] Validate the ten-minute quote expiry round trip on both UTC containers and local Asia/Shanghai business time; MySQL DATETIME must be read as `LocalDateTime` with no implicit timezone conversion.
 - [ ] With two certified campus-scoped accounts and non-production fake
       wallet balances, preview an Agent public task; verify no task/order/
       wallet write before explicit confirmation.
