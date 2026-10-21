@@ -51,7 +51,7 @@ public class AgentChatController {
         Long uid = BaseContext.getCurrentId();
         Long campusId = campuses.requireUserCampus(uid);
         String principal = wire.issuePrincipal(uid, campusId);
-        String path = "/internal/v1/chat";
+        String path = "/internal/v1/delegation";
         String timestamp = Long.toString(Instant.now().getEpochSecond());
         String nonce = UUID.randomUUID().toString();
         String requestId = UUID.randomUUID().toString();

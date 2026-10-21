@@ -8,10 +8,12 @@ import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-from pydantic import BaseModel, Field, field_validator
+from langgraph.types import Command
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.clients.java_backend import JavaReadOnlyClient, JavaToolError
 from app.config import Settings
+from app.agent.delegation import DemandExtractor, build_delegation_graph
 from app.graph import build_graph
 from app.models import build_responder
 from app.security import Actor, NonceGuard, WireSecurity, require_actor
@@ -40,6 +42,26 @@ class ChatResponse(BaseModel):
     status: str
 
 
+class DelegationRequest(BaseModel):
+    """Only human choice is accepted; no task/order ID or password from the model."""
+    message: str = Field(default="", max_length=2000)
+    session_id: uuid.UUID | None = None
+    choice: str | None = Field(default=None, pattern="^(public|offer)$")
+    offer_id: int | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def validate_action(self):
+        if bool(self.message.strip()) == bool(self.choice):
+            raise ValueError("Supply exactly one nonblank message or a choice")
+        if self.offer_id is not None and self.choice != "offer":
+            raise ValueError("offer_id is only valid with offer choice")
+        if self.choice and self.session_id is None:
+            raise ValueError("session_id required for Graph resume")
+        if any(word in self.message.lower() for word in ("支付密码", "paypassword", "pay_password")):
+            raise ValueError("Never enter payment secrets in Agent chat")
+        return self
+
+
 def create_app(settings: Settings | None = None, *, graph_override=None,
                java_http_override: httpx.AsyncClient | None = None) -> FastAPI:
     settings = settings or Settings()
@@ -47,6 +69,7 @@ def create_app(settings: Settings | None = None, *, graph_override=None,
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.wire = WireSecurity(settings)
+        app.state.extractor = DemandExtractor(settings)
         app.state.nonces = NonceGuard()
         if java_http_override is not None:
             app.state.java_tools = JavaReadOnlyClient(java_http_override, app.state.wire)
@@ -56,6 +79,7 @@ def create_app(settings: Settings | None = None, *, graph_override=None,
                 return
             async with AsyncSqliteSaver.from_conn_string(str(settings.checkpoint_path)) as saver:
                 app.state.graph = build_graph(saver, build_responder(settings))
+                app.state.delegation_saver = saver
                 yield
             return
         async with httpx.AsyncClient(
@@ -71,14 +95,15 @@ def create_app(settings: Settings | None = None, *, graph_override=None,
             settings.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
             async with AsyncSqliteSaver.from_conn_string(str(settings.checkpoint_path)) as saver:
                 app.state.graph = build_graph(saver, build_responder(settings))
+                app.state.delegation_saver = saver
                 yield
         app.state.graph = None
 
-    app = FastAPI(title="ShunShou AI (Phase 2: read-only)", lifespan=lifespan)
+    app = FastAPI(title="ShunShou AI (Phase 3: delegation)", lifespan=lifespan)
 
     @app.get("/healthz")
     async def healthz():
-        return {"status": "ok", "phase": 2}
+        return {"status": "ok", "phase": 3}
 
     @app.get("/readyz")
     async def readyz(request: Request):
@@ -106,6 +131,48 @@ def create_app(settings: Settings | None = None, *, graph_override=None,
         except Exception:
             logger.exception("agent_graph_failed")
             raise HTTPException(status_code=503, detail="AI service temporarily unavailable") from None
+
+
+    @app.post("/internal/v1/delegation")
+    async def delegation(payload: DelegationRequest, request: Request,
+                         actor: Annotated[Actor, Depends(require_actor)]):
+        saver = getattr(request.app.state, "delegation_saver", None)
+        if saver is None:
+            raise HTTPException(status_code=503, detail="Delegation checkpoint unavailable")
+        session_id = payload.session_id or uuid.uuid4()
+        graph = build_delegation_graph(saver, request.app.state.extractor,
+                                       request.app.state.java_tools, actor)
+        config = {"configurable": {
+            "thread_id": f"delegation:user:{actor.user_id}:campus:{actor.campus_id}:session:{session_id}"
+        }, "recursion_limit": 8}
+        try:
+            if payload.choice:
+                snapshot = await graph.aget_state(config)
+                if not snapshot.tasks or not any(t.interrupts for t in snapshot.tasks):
+                    raise HTTPException(status_code=409, detail="No pending choice to resume")
+                state = await graph.ainvoke(Command(resume={
+                    "mode": payload.choice, "offer_id": payload.offer_id
+                }), config=config)
+            else:
+                state = await graph.ainvoke(
+                    {"messages": [HumanMessage(content=payload.message.strip())]}, config=config)
+            if "__interrupt__" in state:
+                pauses = state["__interrupt__"]
+                return {"session_id": session_id, "status": "choose_mode",
+                        "answer": "请选择匹配的服务橱窗或生成公开任务草稿，尚未产生任何费用。",
+                        "offers": pauses[0].value.get("offers", []),
+                        "requires_confirmation": True, "preview_input": None}
+            return {"session_id": session_id, "status": state.get("status", "unknown"),
+                    "answer": state.get("question", ""),
+                    "slots": state.get("slots", {}), "offers": state.get("offers", []),
+                    "preview_input": state.get("preview_input"),
+                    "requires_confirmation": state.get("status") == "ready_for_java_preview",
+                    "model_degraded": state.get("model_degraded", False)}
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception("delegation_graph_failed")
+            raise HTTPException(status_code=503, detail="Delegation temporarily unavailable") from None
 
     async def call_tool(request: Request, actor: Actor, name: str, inputs: dict):
         tools = {tool.name: tool for tool in build_read_only_tools(request.app.state.java_tools, actor)}
