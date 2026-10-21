@@ -54,6 +54,18 @@
         </uni-search-bar>
       </view>
 
+      <!-- 独立智能助手入口：保留原首页搜索、任务发布及服务入口。 -->
+      <view class="ai-entry" @click="openAiAssistant('delegation')">
+        <view class="ai-entry-copy">
+          <text class="ai-entry-title">顺手智能助手 · 找同学帮忙</text>
+          <text class="ai-entry-hint">一句话描述需求，先看服务，再预览真实报价</text>
+        </view>
+        <text class="ai-entry-arrow">›</text>
+      </view>
+      <view class="ai-route-entry" @click="openAiAssistant('route')">
+        <text>顺路想接单？按路线智能筛选任务 ›</text>
+      </view>
+
       <!-- 轮播图 / 活动横幅 -->
       <view v-if="bannerImages.length > 0" class="banner-swiper-wrap">
         <swiper class="banner-swiper" :autoplay="true" :interval="bannerInterval * 1000" :duration="500" circular :current="currentIndex" :indicator-dots="bannerImages.length > 1" indicator-color="rgba(255,255,255,0.4)" indicator-active-color="#fff" @change="onBannerChange">
@@ -253,6 +265,10 @@ async function onSearch(e) {
   } catch (e) { /* handled */ }
 }
 
+function openAiAssistant(mode) {
+  if (!requireCertified(store)) return
+  uni.navigateTo({ url: '/pages-agent/assistant/assistant?mode=' + mode })
+}
 function openStorefront() {
   if (!requireCertified(store)) return
   uni.navigateTo({url:'/pages-service/storefront/storefront'})
@@ -340,6 +356,14 @@ onShow(() => {
 .main-scroll { box-sizing: border-box; width: 100%; padding: 0 32rpx; padding-bottom: 180rpx; }
 
 .search-section { margin-top: 16rpx; }
+.ai-entry { display:flex; align-items:center; justify-content:space-between; padding:28rpx;
+  border-radius:28rpx; margin-top:18rpx; background:var(--primary-container); }
+.ai-entry-copy { display:flex; flex-direction:column; gap:7rpx; flex:1; min-width:0 }
+.ai-entry-title { color:var(--primary-dark); font-weight:700; font-size:29rpx }
+.ai-entry-hint { color:var(--text-secondary); font-size:22rpx }
+.ai-entry-arrow { color:var(--primary); font-size:44rpx }
+.ai-route-entry { padding:20rpx 28rpx; border-radius:20rpx; margin-top:12rpx;
+  background:var(--surface-raised); color:var(--text-secondary); font-size:24rpx; }
 
 /* 认证横幅 */
 .cert-banner { display: flex; align-items: center; gap: 14rpx; background: var(--surface-raised); border-radius: var(--radius-md); padding: 20rpx 24rpx; margin-top: 16rpx; box-shadow: var(--shadow-sm); }

@@ -18,5 +18,6 @@ export * as reviewApi from './review'
 export * as notificationApi from './notification'
 export * as chatApi from './chat'
 export * as commonApi from './common'
+export * as agentApi from './agent'
 
 export { getToken, setToken, removeToken } from '@/utils/request'
