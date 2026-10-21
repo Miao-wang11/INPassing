@@ -20,7 +20,18 @@ services:
       - ../backend/migrations/20261021_agent_operation.sql:/docker-entrypoint-initdb.d/06-agent-operation.sql:ro
       - ../backend/migrations/20261021_agent_walk_network.sql:/docker-entrypoint-initdb.d/07-agent-walking.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      # Docker's temporary initialization MySQL may answer unix-socket ping
+      # before /docker-entrypoint-initdb.d has finished all stage migrations.
+      # Require TCP + the last migration sentinel tables before backend starts.
+      test:
+        - CMD-SHELL
+        - >-
+          MYSQL_PWD="$${MYSQL_ROOT_PASSWORD}" mysql --protocol=TCP
+          -h 127.0.0.1 -uroot -D runningerrands -Nse
+          "SELECT COUNT(*) FROM information_schema.tables
+          WHERE table_schema=DATABASE()
+          AND table_name IN ('agent_operation','agent_walk_edge')"
+          | grep -qx '2'
       interval: 10s
       timeout: 5s
       retries: 10
