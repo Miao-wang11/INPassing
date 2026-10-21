@@ -91,6 +91,7 @@ jobs:
   compose-smoke:
     runs-on: ubuntu-latest
     env:
+      SHUNSHOU_DEMO_SEED: 'true'
       SHUNSHOU_AI_INTERNAL_TOKEN: ci-stage5-only-generated-not-real-secret-0123456789abcdef
     steps:
       - uses: actions/checkout@v4
@@ -146,6 +147,11 @@ jobs:
                   assert error.code == 401, (url, error.code)
           print('Unsigned internal and missing-JWT user HTTP requests denied')
           PY
+      - name: Genuine simulated-wallet Agent transaction on fresh demo database
+        run: |
+          docker compose --env-file docker/.env.example -f docker/docker-compose.yml \
+            exec -T -e SHUNSHOU_E2E_DISPOSABLE=1 ai-service \
+            python - < ai-service/tests/integration/compose_simulated_wallet.py
       - name: Teardown isolated CI volumes
         if: always()
         run: docker compose --env-file docker/.env.example -f docker/docker-compose.yml down -v --remove-orphans
