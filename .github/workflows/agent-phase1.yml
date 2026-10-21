@@ -10,6 +10,9 @@ on:
       - 'docker/**'
   pull_request:
     paths:
+      - 'docker/**'
+      - 'docs/agent/**'
+      - 'mobile/**'
       - 'ai-service/**'
       - '.github/workflows/agent-phase1.yml'
       - 'backend/**'

@@ -50,16 +50,18 @@ campus pedestrian data, weight/queues/time assumptions.
    and set `SHUNSHOU_AI_INTERNAL_TOKEN` (same value injected into backend
    and Python; NEVER commit .env).
 2. Set unique strong MySQL/JWT/admin passwords.
-3. **New empty DB volume**: ordered migration mounts run automatically once,
-   AFTER the original `runningerrands.sql`, via MySQL Docker init.
-   **Existing volume**: these init scripts do not run again. Back up first
-   and apply migrations `20261020_campus_scope.sql`,
-   `20261020_service_offer_booking.sql`, `20261020_order_dispute.sql`,
-   `20261020_operations_indexes.sql`, `20261021_agent_operation.sql`,
-   `20261021_agent_walk_network.sql` only where not yet applied and in
-   this exact order. Some ALTER scripts are intentionally **once-only**.
-   Never run the base schema again against real data; never delete a
-   populated MySQL volume to "fix" a migration failure.
+3. **Fresh empty DB volume:** `backend/runningerrands.sql` is already a
+   FULL schema containing the historical `20261020` campus, service-offer,
+   dispute and operations-index changes. Docker runs that file **once**, then
+   only `20261021_agent_operation.sql` and
+   `20261021_agent_walk_network.sql`. Never add `20261020` ALTER scripts
+   after the full base schema; a duplicate `campus_id` aborts MySQL init
+   and leaves Agent tables missing.
+   **Existing populated volume:** Docker init scripts do not rerun. Back up
+   first, inspect actual table/column/index migration state, then selectively
+   apply ONLY genuinely missing migrations in chronological order.
+   DO NOT rerun `runningerrands.sql`, delete the MySQL volume, or attempt
+   blanket non-idempotent ALTER scripts.
 4. For mock local demonstration: `SHUNSHOU_AI_ENVIRONMENT=development`,
    `SHUNSHOU_AI_MODEL_PROVIDER=mock` (deterministic limited parser,
    **not full language model capability**). For production, set

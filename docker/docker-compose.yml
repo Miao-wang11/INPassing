@@ -11,14 +11,14 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
       - ../backend/runningerrands.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-      # These scripts run ONLY on a fresh, empty mysql_data volume, in order.
-      # Existing volumes require a backed-up/manual one-time migration (see docs).
-      - ../backend/migrations/20261020_campus_scope.sql:/docker-entrypoint-initdb.d/02-campus.sql:ro
-      - ../backend/migrations/20261020_service_offer_booking.sql:/docker-entrypoint-initdb.d/03-offers.sql:ro
-      - ../backend/migrations/20261020_order_dispute.sql:/docker-entrypoint-initdb.d/04-disputes.sql:ro
-      - ../backend/migrations/20261020_operations_indexes.sql:/docker-entrypoint-initdb.d/05-operations-index.sql:ro
-      - ../backend/migrations/20261021_agent_operation.sql:/docker-entrypoint-initdb.d/06-agent-operation.sql:ro
-      - ../backend/migrations/20261021_agent_walk_network.sql:/docker-entrypoint-initdb.d/07-agent-walking.sql:ro
+      # FRESH volumes: runningerrands.sql already contains 20261020 campus,
+      # service booking, disputes and operations indexes. Do NOT reapply their
+      # once-only ALTER migrations: MySQL init aborts on duplicate campus_id.
+      # Append only the two Agent tables not present in the base schema.
+      - ../backend/migrations/20261021_agent_operation.sql:/docker-entrypoint-initdb.d/02-agent-operation.sql:ro
+      - ../backend/migrations/20261021_agent_walk_network.sql:/docker-entrypoint-initdb.d/03-agent-walking.sql:ro
+      # EXISTING volumes: Docker init scripts do not rerun. Verify migration
+      # history and apply only missing changes, with backups, separately.
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
