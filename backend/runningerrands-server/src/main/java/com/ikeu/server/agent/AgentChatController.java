@@ -2,6 +2,9 @@ package com.ikeu.server.agent;
 
 import com.ikeu.common.context.BaseContext;
 import com.ikeu.server.service.CampusCatalogService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ikeu.common.result.Result;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,6 +34,7 @@ import java.util.UUID;
 public class AgentChatController {
     private final CampusCatalogService campuses;
     private final AgentWireSecurity wire;
+    private final ObjectMapper objectMapper;
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
 
     @Value("${runningerrands.agent.python-url:http://127.0.0.1:8000}")
@@ -89,7 +93,23 @@ public class AgentChatController {
                     .build();
             HttpResponse<String> reply = client.send(request, HttpResponse.BodyHandlers.ofString());
             log.info("Agent chat proxy status={} requestId={} traceId={}", reply.statusCode(), requestId, traceId);
-            return ResponseEntity.status(reply.statusCode()).contentType(MediaType.APPLICATION_JSON).body(reply.body());
+            // uni-app shared request.js expects {code:1,data:...}, not raw FastAPI JSON.
+            // Never treat a failed/unparseable Python response as successful business data.
+            if (reply.statusCode() != 200) {
+                String message = reply.statusCode() == 422
+                        ? "智能请求字段不完整，请核对后重试" : "智能服务暂时不可用，请稍后重试";
+                return ResponseEntity.status(reply.statusCode() == 422 ? 400 : 503)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(objectMapper.writeValueAsString(Result.error(message)));
+            }
+            JsonNode payload = objectMapper.readTree(reply.body());
+            if (payload == null || !payload.isObject() || !payload.hasNonNull("status")
+                    || !payload.hasNonNull("session_id")) {
+                return ResponseEntity.status(502).contentType(MediaType.APPLICATION_JSON)
+                        .body(objectMapper.writeValueAsString(Result.error("智能服务响应格式异常")));
+            }
+            return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON)
+                    .body(objectMapper.writeValueAsString(Result.success(payload)));
         } catch (InterruptedException ex) {
             log.warn("Agent chat interrupted requestId={} traceId={}", requestId, traceId);
             Thread.currentThread().interrupt();

@@ -1,11 +1,13 @@
-name: Agent Phases 1-4 CI
+name: Agent Phases 1-5 CI
 on:
   push:
-    branches: [feat/agent-phase1-skeleton, feat/agent-phase2-readonly-tools, feat/agent-phase3-delegation, feat/agent-phase4-route-matching]
+    branches: [feat/agent-phase1-skeleton, feat/agent-phase2-readonly-tools, feat/agent-phase3-delegation, feat/agent-phase4-route-matching, feat/agent-phase5-uniapp-compose]
     paths:
       - 'ai-service/**'
       - '.github/workflows/agent-phase1.yml'
       - 'backend/**'
+      - 'mobile/**'
+      - 'docker/**'
   pull_request:
     paths:
       - 'ai-service/**'
@@ -63,3 +65,83 @@ jobs:
         env:
           SHUNSHOU_AGENT_IT_MYSQL_URL: jdbc:mysql://127.0.0.1:3306/agent_phase3_it?useSSL=false&allowPublicKeyRetrieval=true
         run: mvn -B -f backend/pom.xml -pl :runningerrands-server -am -Dtest=AgentMysqlIdempotencyIT,AgentWalkNetworkIT -Dsurefire.failIfNoSpecifiedTests=false test
+
+  mobile-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+      # Official mobile project has no uni-app npm build target.
+      # Test actual ESM API contract and compile new+edited Vue SFCs instead.
+      - name: Run student Agent contract tests
+        run: node --test mobile/tests/agent-contract.test.mjs
+      - name: Install Vue SFC compiler from existing admin dependencies
+        run: npm ci --prefix admin
+      - name: Compile changed student Vue SFCs and inspect route registration
+        run: node mobile/tests/validate-agent-ui.mjs
+
+  compose-smoke:
+    runs-on: ubuntu-latest
+    env:
+      SHUNSHOU_AI_INTERNAL_TOKEN: ci-stage5-only-generated-not-real-secret-0123456789abcdef
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Docker Compose expanded service dependencies
+        run: docker compose --env-file docker/.env.example -f docker/docker-compose.yml config --quiet
+      - name: Build genuine Python Agent image
+        run: docker compose --env-file docker/.env.example -f docker/docker-compose.yml build ai-service
+      - name: Start isolated MySQL, Redis, and internal Python Agent
+        run: |
+          docker compose --env-file docker/.env.example -f docker/docker-compose.yml up -d mysql redis ai-service
+          for attempt in $(seq 1 25); do
+            if docker compose --env-file docker/.env.example -f docker/docker-compose.yml exec -T ai-service \
+              python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz',timeout=2).read()"; then
+              exit 0
+            fi
+            sleep 3
+          done
+          docker compose --env-file docker/.env.example -f docker/docker-compose.yml logs --tail=80 mysql ai-service
+          exit 1
+      - name: Build existing Spring Boot and Nginx images
+        run: docker compose --env-file docker/.env.example -f docker/docker-compose.yml build backend nginx
+      - name: Start complete stack and check internal authorization over real TCP
+        run: |
+          docker compose --env-file docker/.env.example -f docker/docker-compose.yml up -d backend nginx
+          for attempt in $(seq 1 30); do
+            if docker compose --env-file docker/.env.example -f docker/docker-compose.yml exec -T ai-service \
+              python -c "import json,urllib.request; x=json.load(urllib.request.urlopen('http://backend:8080/api/actuator/health', timeout=3)); assert x.get('status')=='UP', x"; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              docker compose --env-file docker/.env.example -f docker/docker-compose.yml logs --tail=100 backend mysql
+              exit 1
+            fi
+            sleep 4
+          done
+          # Check both authenticated boundary paths; never use model-derived identity.
+          docker compose --env-file docker/.env.example -f docker/docker-compose.yml exec -T ai-service python - <<'PY'
+          import urllib.error
+          import urllib.request
+          cases = [
+              ('http://backend:8080/api/internal/agent/v1/matching/candidates', 'GET'),
+              ('http://backend:8080/api/agent/route-match', 'POST'),
+          ]
+          for url, method in cases:
+              body = b'{}' if method == 'POST' else None
+              request = urllib.request.Request(url, data=body, method=method)
+              if method == 'POST':
+                  request.add_header('Content-Type', 'application/json')
+              try:
+                  urllib.request.urlopen(request, timeout=3)
+                  raise AssertionError('unsigned request unexpectedly accepted: ' + url)
+              except urllib.error.HTTPError as error:
+                  assert error.code == 401, (url, error.code)
+          print('Unsigned internal and missing-JWT user HTTP requests denied')
+          PY
+      - name: Teardown isolated CI volumes
+        if: always()
+        run: docker compose --env-file docker/.env.example -f docker/docker-compose.yml down -v --remove-orphans

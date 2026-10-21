@@ -11,6 +11,14 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
       - ../backend/runningerrands.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      # These scripts run ONLY on a fresh, empty mysql_data volume, in order.
+      # Existing volumes require a backed-up/manual one-time migration (see docs).
+      - ../backend/migrations/20261020_campus_scope.sql:/docker-entrypoint-initdb.d/02-campus.sql:ro
+      - ../backend/migrations/20261020_service_offer_booking.sql:/docker-entrypoint-initdb.d/03-offers.sql:ro
+      - ../backend/migrations/20261020_order_dispute.sql:/docker-entrypoint-initdb.d/04-disputes.sql:ro
+      - ../backend/migrations/20261020_operations_indexes.sql:/docker-entrypoint-initdb.d/05-operations-index.sql:ro
+      - ../backend/migrations/20261021_agent_operation.sql:/docker-entrypoint-initdb.d/06-agent-operation.sql:ro
+      - ../backend/migrations/20261021_agent_walk_network.sql:/docker-entrypoint-initdb.d/07-agent-walking.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -57,11 +65,41 @@ services:
       WECHAT_APP_ID: ${WECHAT_APP_ID:-}
       WECHAT_APP_SECRET: ${WECHAT_APP_SECRET:-}
       TENCENT_MAP_API_KEY: ${TENCENT_MAP_API_KEY:-}
+      SHUNSHOU_AI_INTERNAL_TOKEN: ${SHUNSHOU_AI_INTERNAL_TOKEN:?Generate a private random 32-byte+ shared key in docker/.env}
+      SHUNSHOU_AGENT_PYTHON_URL: http://ai-service:8000
     depends_on:
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    networks:
+      - rr-net
+
+  ai-service:
+    build:
+      context: ../ai-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    # Internal network only: NEVER publish port 8000 on the host.
+    environment:
+      SHUNSHOU_AI_INTERNAL_TOKEN: ${SHUNSHOU_AI_INTERNAL_TOKEN:?Generate a private random 32-byte+ shared key}
+      SHUNSHOU_AI_ENVIRONMENT: ${SHUNSHOU_AI_ENVIRONMENT:-development}
+      SHUNSHOU_AI_MODEL_PROVIDER: ${SHUNSHOU_AI_MODEL_PROVIDER:-mock}
+      SHUNSHOU_AI_MODEL_NAME: ${SHUNSHOU_AI_MODEL_NAME:-gpt-4.1-mini}
+      SHUNSHOU_AI_MODEL_BASE_URL: ${SHUNSHOU_AI_MODEL_BASE_URL:-}
+      SHUNSHOU_AI_MODEL_API_KEY: ${SHUNSHOU_AI_MODEL_API_KEY:-}
+      SHUNSHOU_AI_JAVA_BASE_URL: http://backend:8080/api
+      SHUNSHOU_AI_CHECKPOINT_PATH: /app/data/checkpoints.sqlite3
+    volumes:
+      - agent_checkpoint:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz',timeout=2).read()"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
     networks:
       - rr-net
 
@@ -81,6 +119,7 @@ services:
 volumes:
   mysql_data:
   redis_data:
+  agent_checkpoint:
 
 networks:
   rr-net:

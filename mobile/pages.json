@@ -67,6 +67,13 @@
         { "path": "address-list/address-list", "style": { "navigationStyle": "custom", "navigationBarTitleText": "收货地址" } },
         { "path": "address-edit/address-edit", "style": { "navigationStyle": "custom", "navigationBarTitleText": "编辑地址" } }
       ]
+    },
+    {
+      "root": "pages-agent",
+      "name": "agent",
+      "pages": [
+        { "path": "assistant/assistant", "style": { "navigationStyle": "custom", "navigationBarTitleText": "顺手智能助手" } }
+      ]
     }
   ],
   "preloadRule": {
