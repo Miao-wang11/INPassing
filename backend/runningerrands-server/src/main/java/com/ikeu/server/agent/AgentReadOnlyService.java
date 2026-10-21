@@ -131,7 +131,7 @@ public class AgentReadOnlyService {
     public OfferCard offerDetail(Long uid, Long offerId) {
         Long campusId = campuses.requireUserCampus(uid);
         ServiceOfferService.OfferView v = offers.detail(uid, offerId);
-        if (!campusId.equals(v.campusId()) || v.status() != 1) {
+        if (!campusId.equals(v.campusId()) || v.status() != 1 || uid.equals(v.providerId())) {
             throw new ForbiddenException("服务不存在或已失效");
         }
         return new OfferCard(v.id(), v.category(), v.subType(), safeText(v.title()),
