@@ -1,6 +1,7 @@
 package com.ikeu.server.config;
 
 import com.ikeu.common.json.JacksonObjectMapper;
+import com.ikeu.server.agent.AgentInternalAuthInterceptor;
 import com.ikeu.server.interceptor.JwtTokenAdminInterceptor;
 import com.ikeu.server.interceptor.JwtTokenUserInterceptor;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -36,6 +37,7 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
 
     private final JwtTokenAdminInterceptor jwtTokenAdminInterceptor;
     private final JwtTokenUserInterceptor jwtTokenUserInterceptor;
+    private final AgentInternalAuthInterceptor agentInternalAuthInterceptor;
 
     /**
      * 注册管理端和用户端的 JWT 拦截器。
@@ -63,6 +65,9 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
                         "/webjars/**"
                 );
 
+        registry.addInterceptor(agentInternalAuthInterceptor)
+                .addPathPatterns("/internal/agent/**");
+
         registry.addInterceptor(jwtTokenUserInterceptor)
                 .addPathPatterns(
                         "/user/**",
@@ -74,7 +79,8 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
                         "/transaction/**",
                         "/chat/**",
                         "/service-offers/**",
-                        "/disputes/**"
+                        "/disputes/**",
+                        "/agent/**"
                 )
                 .excludePathPatterns(
                         "/user/send",

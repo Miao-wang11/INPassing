@@ -1,22 +1,21 @@
-"""Internal-only FastAPI gateway for a minimal LangGraph scaffold.
-
-The authenticated actor is provided by Java after service-token validation.
-Stage 2 will add signed, expiring principal context and Java business adapters.
-"""
+"""Internal-only FastAPI Agent with Java-authenticated principal and read-only tools."""
 import logging
-import secrets
 import uuid
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+import httpx
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from pydantic import BaseModel, Field, field_validator
 
+from app.clients.java_backend import JavaReadOnlyClient, JavaToolError
 from app.config import Settings
 from app.graph import build_graph
 from app.models import build_responder
+from app.security import Actor, NonceGuard, WireSecurity, require_actor
+from app.tools.read_only import build_read_only_tools
 
 logger = logging.getLogger(__name__)
 
@@ -41,42 +40,45 @@ class ChatResponse(BaseModel):
     status: str
 
 
-class Actor(BaseModel):
-    user_id: int = Field(gt=0)
-
-
-def create_app(settings: Settings | None = None, *, graph_override=None) -> FastAPI:
+def create_app(settings: Settings | None = None, *, graph_override=None,
+               java_http_override: httpx.AsyncClient | None = None) -> FastAPI:
     settings = settings or Settings()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        if graph_override is not None:
-            app.state.graph = graph_override
-            yield
+        app.state.wire = WireSecurity(settings)
+        app.state.nonces = NonceGuard()
+        if java_http_override is not None:
+            app.state.java_tools = JavaReadOnlyClient(java_http_override, app.state.wire)
+            if graph_override is not None:
+                app.state.graph = graph_override
+                yield
+                return
+            async with AsyncSqliteSaver.from_conn_string(str(settings.checkpoint_path)) as saver:
+                app.state.graph = build_graph(saver, build_responder(settings))
+                yield
             return
-        settings.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-        async with AsyncSqliteSaver.from_conn_string(str(settings.checkpoint_path)) as checkpointer:
-            app.state.graph = build_graph(checkpointer, build_responder(settings))
-            yield
+        async with httpx.AsyncClient(
+            base_url=settings.java_base_url.rstrip("/") + "/",
+            timeout=settings.request_timeout_seconds,
+            follow_redirects=False,
+        ) as java_http:
+            app.state.java_tools = JavaReadOnlyClient(java_http, app.state.wire)
+            if graph_override is not None:
+                app.state.graph = graph_override
+                yield
+                return
+            settings.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+            async with AsyncSqliteSaver.from_conn_string(str(settings.checkpoint_path)) as saver:
+                app.state.graph = build_graph(saver, build_responder(settings))
+                yield
         app.state.graph = None
 
-    app = FastAPI(title="ShunShou AI (Phase 1)", lifespan=lifespan)
-    app.state.settings = settings
-
-    async def get_actor(
-        x_internal_token: Annotated[str | None, Header()] = None,
-        x_authenticated_user_id: Annotated[int | None, Header()] = None,
-    ) -> Actor:
-        expected = settings.internal_token.get_secret_value()
-        if not x_internal_token or not secrets.compare_digest(x_internal_token, expected):
-            raise HTTPException(status_code=401, detail="Invalid service credentials")
-        if x_authenticated_user_id is None or x_authenticated_user_id <= 0:
-            raise HTTPException(status_code=401, detail="Missing trusted actor")
-        return Actor(user_id=x_authenticated_user_id)
+    app = FastAPI(title="ShunShou AI (Phase 2: read-only)", lifespan=lifespan)
 
     @app.get("/healthz")
     async def healthz():
-        return {"status": "ok", "phase": 1}
+        return {"status": "ok", "phase": 2}
 
     @app.get("/readyz")
     async def readyz(request: Request):
@@ -85,13 +87,13 @@ def create_app(settings: Settings | None = None, *, graph_override=None) -> Fast
         return {"status": "ready"}
 
     @app.post("/internal/v1/chat", response_model=ChatResponse)
-    async def chat(payload: ChatRequest, request: Request, actor: Annotated[Actor, Depends(get_actor)]):
+    async def chat(payload: ChatRequest, request: Request,
+                   actor: Annotated[Actor, Depends(require_actor)]):
         graph = getattr(request.app.state, "graph", None)
         if graph is None:
             raise HTTPException(status_code=503, detail="Graph not ready")
         session_id = payload.session_id or uuid.uuid4()
-        # Actor is NOT accepted from user text or JSON body. Session namespaces are user-scoped.
-        thread_id = f"user:{actor.user_id}:session:{session_id}"
+        thread_id = f"user:{actor.user_id}:campus:{actor.campus_id}:session:{session_id}"
         config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 6}
         try:
             state = await graph.ainvoke({"messages": [HumanMessage(content=payload.message)]}, config=config)
@@ -102,11 +104,74 @@ def create_app(settings: Settings | None = None, *, graph_override=None) -> Fast
                 status=state["status"],
             )
         except Exception:
-            logger.exception("agent_graph_failed", extra={"request_id": request.headers.get("X-Request-ID", "")[:64]})
+            logger.exception("agent_graph_failed")
             raise HTTPException(status_code=503, detail="AI service temporarily unavailable") from None
+
+    async def call_tool(request: Request, actor: Actor, name: str, inputs: dict):
+        tools = {tool.name: tool for tool in build_read_only_tools(request.app.state.java_tools, actor)}
+        if name not in tools:
+            raise HTTPException(status_code=404, detail="No such read-only tool")
+        try:
+            return await tools[name].ainvoke(inputs)
+        except JavaToolError as ex:
+            status = {"UNAUTHORIZED": 403, "BUSINESS_REJECTED": 400, "TIMEOUT": 504,
+                      "BACKEND_UNAVAILABLE": 503, "INVALID_RESPONSE": 502}.get(ex.kind, 400)
+            raise HTTPException(status_code=status, detail=ex.kind) from None
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=422, detail="Invalid tool parameters/response") from None
+        except Exception:
+            logger.exception("read_only_tool_failed")
+            raise HTTPException(status_code=503, detail="Read-only tool unavailable") from None
+
+    @app.get("/internal/v1/tools/tasks/search")
+    async def task_search(request: Request, actor: Annotated[Actor, Depends(require_actor)],
+                          keyword: str = Query(default="", max_length=80),
+                          type: str = Query(default="", max_length=32),
+                          page: int = Query(default=1, ge=1),
+                          size: int = Query(default=10, ge=1, le=30)):
+        return await call_tool(request, actor, "search_public_tasks",
+                               {"keyword": keyword, "type": type, "page": page, "size": size})
+
+    @app.get("/internal/v1/tools/tasks/filter")
+    async def task_filter(request: Request, actor: Annotated[Actor, Depends(require_actor)],
+                          type: str = Query(default="", max_length=32),
+                          pickup: str = Query(default="", max_length=80),
+                          delivery: str = Query(default="", max_length=80),
+                          page: int = Query(default=1, ge=1),
+                          size: int = Query(default=10, ge=1, le=30)):
+        return await call_tool(request, actor, "filter_public_tasks",
+                               {"type": type, "pickup": pickup, "delivery": delivery,
+                                "page": page, "size": size})
+
+    @app.get("/internal/v1/tools/offers")
+    async def offers(request: Request, actor: Annotated[Actor, Depends(require_actor)],
+                     category: str = Query(default="", max_length=32),
+                     page: int = Query(default=1, ge=1),
+                     size: int = Query(default=10, ge=1, le=30)):
+        return await call_tool(request, actor, "list_service_offers",
+                               {"category": category, "page": page, "size": size})
+
+    @app.get("/internal/v1/tools/tasks/{task_id}")
+    async def task_detail(task_id: int, request: Request,
+                          actor: Annotated[Actor, Depends(require_actor)]):
+        return await call_tool(request, actor, "get_public_task_detail", {"task_id": task_id})
+
+    @app.get("/internal/v1/tools/offers/{offer_id}")
+    async def offer_detail(offer_id: int, request: Request,
+                           actor: Annotated[Actor, Depends(require_actor)]):
+        return await call_tool(request, actor, "get_service_offer_detail", {"offer_id": offer_id})
+
+    @app.get("/internal/v1/tools/campus")
+    async def campus(request: Request, actor: Annotated[Actor, Depends(require_actor)]):
+        return await call_tool(request, actor, "get_campus_catalog", {})
+
+    @app.get("/internal/v1/tools/tasks/{task_id}/eligibility")
+    async def eligibility(task_id: int, request: Request,
+                          actor: Annotated[Actor, Depends(require_actor)]):
+        return await call_tool(request, actor, "check_accept_eligibility", {"task_id": task_id})
 
     return app
 
 
-# Config errors intentionally fail startup (no unauthenticated fallback).
+# Missing shared secret deliberately prevents startup; no unauthenticated fallback.
 app = create_app()

@@ -42,6 +42,9 @@ logging:
 
 # 项目配置
 runningerrands:
+  agent:
+    shared-secret: ${SHUNSHOU_AI_INTERNAL_TOKEN:}
+    python-url: ${SHUNSHOU_AGENT_PYTHON_URL:http://127.0.0.1:8000}
   admin:
     init:
       username: ${RUNNING_ERRANDS_ADMIN_USERNAME:admin}
