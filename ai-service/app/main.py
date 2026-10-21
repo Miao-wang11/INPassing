@@ -1,4 +1,4 @@
-"""Internal-only FastAPI Agent with Java-authenticated principal and read-only tools."""
+"""Private FastAPI service for Java-authenticated campus Agent workflows."""
 import logging
 import uuid
 from contextlib import asynccontextmanager
@@ -9,38 +9,16 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.types import Command
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from app.clients.java_backend import JavaReadOnlyClient, JavaToolError
 from app.config import Settings
 from app.agent.delegation import DemandExtractor, build_delegation_graph
 from app.agent.route_matching import RouteExtractor, build_route_graph
-from app.graph import build_graph
-from app.models import build_responder
 from app.security import Actor, NonceGuard, WireSecurity, require_actor
 from app.tools.read_only import build_read_only_tools
 
 logger = logging.getLogger(__name__)
-
-
-class ChatRequest(BaseModel):
-    message: str = Field(min_length=1, max_length=2000)
-    session_id: uuid.UUID | None = None
-
-    @field_validator("message")
-    @classmethod
-    def not_blank(cls, value: str) -> str:
-        value = value.strip()
-        if not value:
-            raise ValueError("message cannot be blank")
-        return value
-
-
-class ChatResponse(BaseModel):
-    session_id: uuid.UUID
-    answer: str
-    turns: int
-    status: str
 
 
 class RouteRequest(BaseModel):
@@ -80,8 +58,7 @@ class DelegationRequest(BaseModel):
         return self
 
 
-def create_app(settings: Settings | None = None, *, graph_override=None,
-               java_http_override: httpx.AsyncClient | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
 
     @asynccontextmanager
@@ -90,67 +67,29 @@ def create_app(settings: Settings | None = None, *, graph_override=None,
         app.state.extractor = DemandExtractor(settings)
         app.state.route_extractor = RouteExtractor(settings)
         app.state.nonces = NonceGuard()
-        if java_http_override is not None:
-            app.state.java_tools = JavaReadOnlyClient(java_http_override, app.state.wire)
-            if graph_override is not None:
-                app.state.graph = graph_override
-                yield
-                return
-            async with AsyncSqliteSaver.from_conn_string(str(settings.checkpoint_path)) as saver:
-                app.state.graph = build_graph(saver, build_responder(settings))
-                app.state.delegation_saver = saver
-                yield
-            return
+        settings.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
         async with httpx.AsyncClient(
             base_url=settings.java_base_url.rstrip("/") + "/",
             timeout=settings.request_timeout_seconds,
             follow_redirects=False,
         ) as java_http:
             app.state.java_tools = JavaReadOnlyClient(java_http, app.state.wire)
-            if graph_override is not None:
-                app.state.graph = graph_override
-                yield
-                return
-            settings.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
             async with AsyncSqliteSaver.from_conn_string(str(settings.checkpoint_path)) as saver:
-                app.state.graph = build_graph(saver, build_responder(settings))
                 app.state.delegation_saver = saver
                 yield
-        app.state.graph = None
+        app.state.delegation_saver = None
 
-    app = FastAPI(title="ShunShou AI (Phase 4: route matching)", lifespan=lifespan)
+    app = FastAPI(title="ShunShou AI", lifespan=lifespan)
 
     @app.get("/healthz")
     async def healthz():
-        return {"status": "ok", "phase": 4}
+        return {"status": "ok"}
 
     @app.get("/readyz")
     async def readyz(request: Request):
-        if getattr(request.app.state, "graph", None) is None:
-            raise HTTPException(status_code=503, detail="Graph not initialized")
+        if getattr(request.app.state, "delegation_saver", None) is None:
+            raise HTTPException(status_code=503, detail="Checkpoint not initialized")
         return {"status": "ready"}
-
-    @app.post("/internal/v1/chat", response_model=ChatResponse)
-    async def chat(payload: ChatRequest, request: Request,
-                   actor: Annotated[Actor, Depends(require_actor)]):
-        graph = getattr(request.app.state, "graph", None)
-        if graph is None:
-            raise HTTPException(status_code=503, detail="Graph not ready")
-        session_id = payload.session_id or uuid.uuid4()
-        thread_id = f"user:{actor.user_id}:campus:{actor.campus_id}:session:{session_id}"
-        config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 6}
-        try:
-            state = await graph.ainvoke({"messages": [HumanMessage(content=payload.message)]}, config=config)
-            return ChatResponse(
-                session_id=session_id,
-                answer=str(state["messages"][-1].content),
-                turns=state["turns"],
-                status=state["status"],
-            )
-        except Exception:
-            logger.exception("agent_graph_failed")
-            raise HTTPException(status_code=503, detail="AI service temporarily unavailable") from None
-
 
     @app.post("/internal/v1/delegation")
     async def delegation(payload: DelegationRequest, request: Request,

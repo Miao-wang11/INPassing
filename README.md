@@ -6,7 +6,7 @@ Spring Boot 3 / Java 21 + MyBatis-Plus + MySQL 8 + Redis + Vue 3 管理后台 + 
 
 ## 1. Windows 本地环境
 
-推荐使用 Docker Desktop 一键运行后端、管理后台、MySQL、Redis。
+推荐使用 Docker Desktop 运行后端、Python Agent、管理后台、MySQL 和 Redis。
 
 必需：Git、Docker Desktop（WSL2 / Linux 容器模式）。
 按需安装：JDK 21、IntelliJ IDEA、Maven 3.9+、Node.js 22、HBuilderX、微信开发者工具。
@@ -37,9 +37,14 @@ Spring Boot 3 / Java 21 + MyBatis-Plus + MySQL 8 + Redis + Vue 3 管理后台 + 
     REDIS_PORT=6381
     BACKEND_PORT=8080
     NGINX_PORT=80
-    SHUNSHOU_DEMO_SEED=true
+    SHUNSHOU_AI_INTERNAL_TOKEN=填写至少32字节的随机密钥
+    SHUNSHOU_AI_MODEL_PROVIDER=openai_compatible
+    SHUNSHOU_AI_MODEL_NAME=你的模型名称
+    SHUNSHOU_AI_MODEL_BASE_URL=你的OpenAI兼容接口地址
+    SHUNSHOU_AI_MODEL_API_KEY=你的API密钥
+    TENCENT_MAP_API_KEY=你的腾讯地图Key
 
-SHUNSHOU_DEMO_SEED=true **仅适合隔离的本地演示**，会生成演示学校与学生。无演示需求设为 false。阿里云、微信、腾讯地图密钥在本地演示可以先留空，但短信、OSS 上传、微信授权与地图相关功能将受到限制。
+未配置第三方 API 时，相应功能会受限。暂未接入大模型时，可把 `SHUNSHOU_AI_MODEL_PROVIDER` 设置为 `mock`，使用有限的规则解析；它不等同于真实大模型能力。
 
 仍在 docker 目录运行：
 
@@ -60,8 +65,6 @@ SHUNSHOU_DEMO_SEED=true **仅适合隔离的本地演示**，会生成演示学�
 | Redis | 127.0.0.1:6381，database 1，无密码 |
 
 若本机 80 端口被占用，在 .env 改为 NGINX_PORT=8088，管理后台改访问 http://localhost:8088/api/ 。同理可以改变宿主机的 MYSQL_PORT、REDIS_PORT、BACKEND_PORT。
-
-**演示账号**（仅 SHUNSHOU_DEMO_SEED=true）：testuser、testuser2（东校区），testuser3（西校区），登录密码均为 123456。已设支付密码的演示账号使用 123456，仅模拟业务。管理员账号为 ADMIN_USERNAME 和你设置的 ADMIN_PASSWORD。
 
 注意：管理员由后端在数据库首次创建；数据库已存在账号时，修改 .env 不会重置其密码。同样，改变 .env 的 MYSQL_ROOT_PASSWORD 不会修改已存在数据卷中的 MySQL 密码。
 
@@ -120,11 +123,11 @@ Maven 构建（在 backend 目录）：
 2. 开发环境请求配置在 mobile/utils/config.js，默认 API 为 http://localhost:8080/api，WebSocket 为 ws://localhost:8080/api/ws。本机浏览器可以使用 localhost。
 3. **真机不能用 localhost 访问电脑后端**：将 mobile/utils/config.js 中 develop 环境的地址改为运行后端电脑的局域网 IP，并确认同 Wi-Fi、Windows 防火墙及端口访问。
 4. 微信小程序要在 mobile/manifest.json 设置你自己的 mp-weixin AppID，正式发布需配置合法 HTTPS/WSS 域名并在微信平台登记合法服务器域名。仓库中残留的原项目 AppID 和线上域名不可直接作为你的正式配置。
-5. 若未配置短信、OSS、地图或微信开放平台凭据，相关第三方能力不可视为已打通。优先用普通演示账号核对本地业务流程。
+5. 若未配置短信、OSS、地图或微信开放平台凭据，相关第三方能力不可视为已打通。使用自己注册并通过校区认证的学生账号核对本地业务流程。
 
 ## 6. 数据库初始化与旧库升级
 
-**全新空 MySQL 卷**：Docker 首次启动自动执行 backend/runningerrands.sql 建库建表。
+**全新空 MySQL 卷**：Docker 首次执行 `backend/runningerrands.sql`，然后执行 Agent 操作记录与校园步行路网的两份增量 SQL。基础 SQL 已包含历史校园、服务橱窗和争议表结构，不能重复执行历史 ALTER。
 
 **已有数据的旧库**：backend/runningerrands.sql 包含 DROP DATABASE；绝对不要手动对旧库重跑，否则会丢失数据。备份后确认旧库已做过哪些迁移，再按顺序对缺失项各执行一次：
 
@@ -132,6 +135,8 @@ Maven 构建（在 backend 目录）：
     backend/migrations/20261020_service_offer_booking.sql
     backend/migrations/20261020_order_dispute.sql
     backend/migrations/20261020_operations_indexes.sql
+    backend/migrations/20261021_agent_operation.sql
+    backend/migrations/20261021_agent_walk_network.sql
 
 迁移文件不是允许重复盲目运行的通用初始化脚本。可用 DataGrip 导入、核对 SQL；旧数据库账号、已有任务和校区关联需要按实际数据检查。
 
@@ -145,4 +150,4 @@ Maven 构建（在 backend 目录）：
 - 学生端网络失败：检查 mobile/utils/config.js 地址、设备 localhost、微信域名限制及 WebSocket 协议。
 - 遇到端口占用：调整 .env 映射，单独 IDEA 运行 Java 时不要同时保留 Docker backend。
 
-只保留实际源码、运行依赖、构建配置、SQL 与增量迁移。该项目尚不支持真实支付资金托管，运行前请区分模拟业务和生产服务。
+项目保留必要的源码、运行依赖、构建配置、数据库结构和增量迁移。顺路耗时评估需要经核实的校园步行路网，单独配置腾讯地图 Key 不会自动生成这些数据。钱包和支付均为模拟交易，不涉及真实资金托管。
