@@ -227,8 +227,16 @@ public class ServiceOfferService {
         return result.isEmpty() ? null : result.get(0);
     }
 
+    /** Existing booking API behavior is unchanged for current uni-app callers. */
     @Transactional
     public BookingReceipt book(Long requesterId, Long offerId, BookingForm form) {
+        return book(requesterId, offerId, form, null);
+    }
+
+    /** Agent checkout compares the previewed quote under the SAME locked offer row. */
+    @Transactional
+    public BookingReceipt book(Long requesterId, Long offerId, BookingForm form,
+                               BigDecimal expectedServicePrice) {
         Long campusId = campusCatalog.requireUserCampus(requesterId);
         if (offerId == null || form == null || form.requestKey() == null
                 || !form.requestKey().matches("[A-Za-z0-9_-]{8,64}")
@@ -258,6 +266,9 @@ public class ServiceOfferService {
         }
 
         BigDecimal fee = money(offer.servicePrice(),"服务报价",true,MAX_SERVICE_PRICE);
+        if (expectedServicePrice != null && fee.compareTo(expectedServicePrice) != 0) {
+            throw new BusinessException("服务报价已变化，请重新预览委托草稿");
+        }
         BigDecimal total = fee.add(goods);
         try {
             TaskFeeBreakdown.of(fee,BigDecimal.ZERO,goods,total);
