@@ -1,7 +1,7 @@
-name: Agent Phases 1-3 CI
+name: Agent Phases 1-4 CI
 on:
   push:
-    branches: [feat/agent-phase1-skeleton, feat/agent-phase2-readonly-tools, feat/agent-phase3-delegation]
+    branches: [feat/agent-phase1-skeleton, feat/agent-phase2-readonly-tools, feat/agent-phase3-delegation, feat/agent-phase4-route-matching]
     paths:
       - 'ai-service/**'
       - '.github/workflows/agent-phase1.yml'
@@ -62,4 +62,4 @@ jobs:
       - name: Actual MySQL concurrency and idempotency integration test
         env:
           SHUNSHOU_AGENT_IT_MYSQL_URL: jdbc:mysql://127.0.0.1:3306/agent_phase3_it?useSSL=false&allowPublicKeyRetrieval=true
-        run: mvn -B -f backend/pom.xml -pl :runningerrands-server -am -Dtest=AgentMysqlIdempotencyIT -Dsurefire.failIfNoSpecifiedTests=false test
+        run: mvn -B -f backend/pom.xml -pl :runningerrands-server -am -Dtest=AgentMysqlIdempotencyIT,AgentWalkNetworkIT -Dsurefire.failIfNoSpecifiedTests=false test

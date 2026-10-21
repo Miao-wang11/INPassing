@@ -76,6 +76,40 @@ public class AgentReadOnlyService {
                 .map(t -> toTask(t, campusId)).toList());
     }
 
+
+    /** Only verified, public, currently eligible candidate cards. Read-only precheck, NOT a claim. */
+    public record CandidateBatch(long examined, long totalBeforeEligibility, boolean morePages,
+                                 List<TaskCard> records) {}
+
+    @Transactional(readOnly = true)
+    public CandidateBatch matchingCandidates(Long uid, int page, int size) {
+        Long campusId = campuses.requireUserCampus(uid);
+        PageResult<TaskListVO> raw = tasks.searchTasks(null, null, null, null, page, size);
+        List<TaskCard> result = new java.util.ArrayList<>();
+        for (TaskListVO t : raw.getRecords()) {
+            if (!campusId.equals(t.getCampusId()))
+                throw new ForbiddenException("候选任务校区不合法");
+            if (uid.equals(t.getPublisherId()) ||
+                    !Objects.equals(t.getStatus(), StatusConstant.TASK_WAITING) ||
+                    t.getExpireTime() == null || !t.getExpireTime().isAfter(LocalDateTime.now())) {
+                continue;
+            }
+            try {
+                // Uses existing runner profile, certification, sex, capacity, ban/credit checks.
+                // Never invokes ensureForAccept(), nor any task/order mutation.
+                if (eligibility(uid, t.getTaskId()).canAttempt()) {
+                    result.add(toTask(t, campusId));
+                }
+            } catch (ForbiddenException ex) {
+                // Task may have become private/claimed between hall query and precheck.
+                // It must disappear from recommendations. Final acceptOrder rechecks atomically.
+            }
+        }
+        long total = raw.getTotal();
+        return new CandidateBatch(raw.getRecords().size(), total, (long) page * size < total,
+                List.copyOf(result));
+    }
+
     @Transactional(readOnly = true)
     public PageResult<TaskCard> searchTasks(Long uid, String keyword, String type, int page, int size) {
         campuses.requireUserCampus(uid);

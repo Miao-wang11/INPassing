@@ -46,6 +46,14 @@ def test_uvicorn_socket_http(tmp_path):
             reply = client.send(req)
             assert reply.status_code == 200, reply.text
             assert reply.json()["turns"] == 1
+            # Stage 4 signed route endpoint over real Uvicorn socket:
+            # Missing fields are clarified without an unauthenticated Java call.
+            match = signed(client, "POST", "/internal/v1/route-match", secret,
+                           principal(secret, 19, 1),
+                           payload={"message":"从图书馆回三号宿舍"})
+            route = client.send(match)
+            assert route.status_code == 200, route.text
+            assert route.json()["status"] == "needs_clarification"
     finally:
         proc.terminate()
         try:

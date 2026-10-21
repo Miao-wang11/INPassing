@@ -38,6 +38,15 @@ public class AgentChatController {
 
     @PostMapping(value = "/chat", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<String> chat(@RequestBody String body) {
+        return forward(body, "/internal/v1/delegation");
+    }
+
+    @PostMapping(value = "/route-match", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> routeMatch(@RequestBody String body) {
+        return forward(body, "/internal/v1/route-match");
+    }
+
+    private ResponseEntity<String> forward(String body, String path) {
         if (body == null || body.isBlank() || body.length() > 8000) {
             return ResponseEntity.badRequest().contentType(MediaType.APPLICATION_JSON)
                     .body("{\"code\":0,\"msg\":\"invalid chat payload\"}");
@@ -51,7 +60,6 @@ public class AgentChatController {
         Long uid = BaseContext.getCurrentId();
         Long campusId = campuses.requireUserCampus(uid);
         String principal = wire.issuePrincipal(uid, campusId);
-        String path = "/internal/v1/delegation";
         String timestamp = Long.toString(Instant.now().getEpochSecond());
         String nonce = UUID.randomUUID().toString();
         String requestId = UUID.randomUUID().toString();
