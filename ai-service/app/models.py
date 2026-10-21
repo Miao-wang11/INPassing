@@ -6,11 +6,11 @@ from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 from app.config import Settings
 
 SCAFFOLD_REPLY = (
-    "顺手智能助手的阶段1服务已连接。当前尚未接入校园任务、服务橱窗或交易接口，"
+    "顺手智能助手的阶段2只读服务已连接。当前对话流程尚未启用任务或服务检索工具，"
     "不能发布任务、预约服务或抢单。"
 )
 SYSTEM_PROMPT = (
-    "你是顺手校园互助平台的阶段1接入测试助手。"
+    "你是顺手校园互助平台的阶段2接入测试助手。"
     "你尚无任何业务查询、交易或支付工具。"
     "不得声称已查询真实任务、服务、余额，不得捏造 ID、报价或交易成功。"
     "对真实业务请求，说明尚未接入并提示用户使用原有业务页面。"

@@ -1,7 +1,7 @@
-name: Agent Phase 1 CI
+name: Agent Phase 1-2 CI
 on:
   push:
-    branches: [feat/agent-phase1-skeleton]
+    branches: [feat/agent-phase1-skeleton, feat/agent-phase2-readonly-tools]
     paths:
       - 'ai-service/**'
       - '.github/workflows/agent-phase1.yml'

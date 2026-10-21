@@ -1,4 +1,4 @@
-"""Actual TCP HTTP test (not only ASGI in-process): exercises uvicorn startup."""
+"""Actual TCP/uvicorn authenticated HTTP smoke test."""
 import os
 import socket
 import subprocess
@@ -6,6 +6,8 @@ import sys
 import time
 
 import httpx
+
+from tests.test_http import principal, signed
 
 
 def test_uvicorn_socket_http(tmp_path):
@@ -39,10 +41,9 @@ def test_uvicorn_socket_http(tmp_path):
                 time.sleep(0.2)
             else:
                 raise AssertionError("uvicorn readiness timed out")
-            reply = client.post(
-                f"{base}/internal/v1/chat", json={"message": "附近任务"},
-                headers={"X-Internal-Token": secret, "X-Authenticated-User-Id": "19"},
-            )
+            req = signed(client, "POST", "/internal/v1/chat", secret, principal(secret, 19, 1),
+                         payload={"message": "附近任务"})
+            reply = client.send(req)
             assert reply.status_code == 200, reply.text
             assert reply.json()["turns"] == 1
     finally:
