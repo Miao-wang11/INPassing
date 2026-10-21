@@ -18,7 +18,6 @@ class Settings(BaseSettings):
     java_base_url: str = "http://127.0.0.1:8080/api"
     checkpoint_path: Path = Path("data/checkpoints.sqlite3")
     request_timeout_seconds: float = Field(default=15, gt=0, le=120)
-    max_history_messages: int = Field(default=12, ge=1, le=50)
 
     @model_validator(mode="after")
     def check_configuration(self) -> "Settings":
