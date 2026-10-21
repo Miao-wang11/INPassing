@@ -50,6 +50,7 @@ class AgentReadOnlyHttpTest {
                         .header("X-Agent-Timestamp", ts)
                         .header("X-Agent-Nonce", nonce)
                         .header("X-Agent-Signature", wire.signature("GET", target, principal, ts, nonce)))
+                .andDo(org.springframework.test.web.servlet.result.MockMvcResultHandlers.print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.records[0].taskId").value(31))
                 .andExpect(jsonPath("$.data.records[0].contactPhone").doesNotExist())
