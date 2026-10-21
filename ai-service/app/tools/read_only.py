@@ -1,6 +1,6 @@
 """Typed LangChain tools bound to authenticated per-request Actor, never LLM-supplied IDs."""
 from langchain_core.tools import tool
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.clients.java_backend import JavaReadOnlyClient
 from app.security import Actor
@@ -38,14 +38,22 @@ class CandidatePage(BaseModel):
     records: list[dict]
 
 
+def safe_validate(model, data) -> dict:
+    """Pydantic errors may echo rejected raw values; never reveal them to LLMs/logs."""
+    try:
+        return model.model_validate(data).model_dump(mode="json")
+    except ValidationError:
+        raise ValueError("Java read-only response schema rejected") from None
+
+
 def build_read_only_tools(java: JavaReadOnlyClient, actor: Actor):
     """Returns tools with an immutable, verified actor closure. Phase 3 will bind to LLM."""
     async def request_page(path: str, params: dict, model):
         data = await java.get(path, actor, params)
-        page = CandidatePage.model_validate(data)
+        page = safe_validate(CandidatePage, data)
         return {
-            "total": page.total,
-            "records": [model.model_validate(item).model_dump(mode="json") for item in page.records],
+            "total": page["total"],
+            "records": [safe_validate(model, item) for item in page["records"]],
         }
 
     @tool
@@ -81,7 +89,7 @@ def build_read_only_tools(java: JavaReadOnlyClient, actor: Actor):
         if task_id <= 0:
             raise ValueError("invalid task ID")
         data = await java.get(f"/internal/agent/v1/tasks/{task_id}", actor)
-        return TaskCard.model_validate(data).model_dump(mode="json")
+        return safe_validate(TaskCard, data)
 
     @tool
     async def get_service_offer_detail(offer_id: int) -> dict:
@@ -89,7 +97,7 @@ def build_read_only_tools(java: JavaReadOnlyClient, actor: Actor):
         if offer_id <= 0:
             raise ValueError("invalid offer ID")
         data = await java.get(f"/internal/agent/v1/offers/{offer_id}", actor)
-        return OfferCard.model_validate(data).model_dump(mode="json")
+        return safe_validate(OfferCard, data)
 
     @tool
     async def get_campus_catalog() -> list[dict]:
