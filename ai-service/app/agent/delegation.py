@@ -27,9 +27,9 @@ VALID_TYPES = {"代取快递", "代拿餐食", "校内代办", "代购物品", "
 ALLOWED_FIELDS = {
     "category", "sub_type", "description", "pickup_address",
     "delivery_area", "delivery_address_id", "tip", "delivery_fee",
-    "product_cost", "shopping_budget", "max_budget", "deadline_text",
+    "product_cost", "shopping_budget", "max_budget", "deadline_text", "pages",
 }
-MONEY_RE = r"([0-9]+(?:\\.[0-9]{1,2})?)"
+MONEY_RE = r"([0-9]+(?:\.[0-9]{1,2})?)"
 
 
 class DemandPatch(BaseModel):
@@ -45,6 +45,7 @@ class DemandPatch(BaseModel):
     shopping_budget: float | None = None
     max_budget: float | None = None
     deadline_text: str | None = None
+    pages: int | None = Field(default=None, ge=1, le=1000)
 
 
 class DemandExtractor:
@@ -82,6 +83,22 @@ class DemandExtractor:
         return self._rule_extract(message), self.model is not None
 
     @staticmethod
+    def _chinese_number(raw: str) -> int | None:
+        digits = {c: i for i, c in enumerate("零一二三四五六七八九")}
+        if raw.isdigit():
+            return int(raw)
+        if raw in digits:
+            return digits[raw]
+        if raw == "十":
+            return 10
+        if "十" in raw:
+            tens, _, ones = raw.partition("十")
+            a = digits.get(tens, 1) if tens else 1
+            b = digits.get(ones, 0) if ones else 0
+            return a * 10 + b
+        return None
+
+    @staticmethod
     def _rule_extract(message: str) -> dict:
         """Deliberately conservative: no guessed fees, addresses or time guarantees."""
         values: dict = {}
@@ -103,7 +120,7 @@ class DemandExtractor:
         delivery = re.search(r"(?:送到|送至|目的地)[：:\s]*([^，,。；;]{2,40})", message)
         if delivery:
             values["delivery_area"] = delivery.group(1).strip()
-        address_id = re.search(r"地址(?:簿)?ID[：:\s]*(\\d{1,12})", message, re.I)
+        address_id = re.search(r"地址(?:簿)?ID[：:\s]*(\d{1,12})", message, re.I)
         if address_id:
             values["delivery_address_id"] = int(address_id.group(1))
         for field, title in (("tip", "小费"), ("delivery_fee", "配送费"),
@@ -114,6 +131,18 @@ class DemandExtractor:
         cap = re.search(r"(?:总预算|最多|预算)[：:\s]*" + MONEY_RE, message)
         if cap:
             values["max_budget"] = float(cap.group(1))
+        pages = re.search(r"([0-9]{1,4}|[零一二三四五六七八九十]{1,4})页", message)
+        if pages:
+            quantity = DemandExtractor._chinese_number(pages.group(1))
+            if quantity is not None and 1 <= quantity <= 1000:
+                values["pages"] = quantity
+        # A spoken total budget must never become an invented service tip.
+        if "max_budget" not in values:
+            cap_han = re.search(r"预算[：:\s]*([一二三四五六七八九十]{1,4})[块元]", message)
+            if cap_han:
+                amount = DemandExtractor._chinese_number(cap_han.group(1))
+                if amount is not None:
+                    values["max_budget"] = float(amount)
         if "明天" in message or "今晚" in message or "截止" in message or "点前" in message:
             values["deadline_text"] = "用户要求的时间（当前任务表不具有可强制的交付截止字段）"
         if any(x in message for x in ("帮我", "需要", "想要", "请人", "打印", "咖啡", "奶茶")):
@@ -153,6 +182,10 @@ def validate_patch(patch: dict) -> dict:
                 clean.pop(key)
             else:
                 clean[key] = cost
+    if "pages" in clean and (
+        type(clean["pages"]) is not int or not 1 <= clean["pages"] <= 1000
+    ):
+        clean.pop("pages")
     if "delivery_address_id" in clean and (
         type(clean["delivery_address_id"]) is not int or clean["delivery_address_id"] <= 0
     ):
@@ -218,7 +251,7 @@ def preview_payload(slots: dict, decision: dict) -> dict:
         "publicDesc": slots["description"],
         "pickupAddress": slots["pickup_address"],
         "deliveryAddressId": slots["delivery_address_id"],
-        "taskSpecs": None,
+        "taskSpecs": (f'{{"数量":{slots["pages"]}}}' if slots.get("pages") else None),
         "tip": slots.get("tip"),
         "deliveryFee": slots.get("delivery_fee", 0),
         "productCost": slots.get("product_cost", 0),

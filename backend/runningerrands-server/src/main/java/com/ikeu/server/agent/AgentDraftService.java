@@ -68,7 +68,7 @@ public class AgentDraftService {
     public record Receipt(String operationId, String status, Long taskId, Long orderId,
                           BigDecimal total) {}
     private record Snapshot(String operationId, long userId, long campusId, String mode, String payload,
-                            String confirmHash, BigDecimal quotedFee, BigDecimal quotedGoods,
+                            String payloadHash, String confirmHash, BigDecimal quotedFee, BigDecimal quotedGoods,
                             BigDecimal total, LocalDateTime expiresAt, String status,
                             Long taskId, Long orderId) {}
 
@@ -121,13 +121,21 @@ public class AgentDraftService {
         dto.setPickupAddress(text(input.pickupAddress(), 255, "取件地点"));
         dto.setDeliveryAddressId(input.deliveryAddressId());
         dto.setTip(bounded(input.tip(), new BigDecimal("50.00"), "小费"));
-        dto.setDeliveryFee(bounded(zero(input.deliveryFee()), new BigDecimal("99999999.99"), "配送费"));
-        dto.setProductCost(bounded(zero(input.productCost()), new BigDecimal("99999999.99"), "商品预算"));
+        dto.setDeliveryFee(bounded(zero(input.deliveryFee()), MAX_SERVICE, "配送费"));
+        dto.setProductCost(bounded(zero(input.productCost()), MAX_GOODS, "商品预算"));
         int ttl = input.expireMinutes() == null ? 60 : input.expireMinutes();
         if (ttl < 10 || ttl > 1440) throw new BusinessException("任务接单有效期必须为10～1440分钟");
         dto.setExpireMinutes(ttl);
         if (input.taskSpecs() != null && input.taskSpecs().length() > 2048)
             throw new BusinessException("任务规格过长");
+        if (input.taskSpecs() != null && !input.taskSpecs().isBlank()) {
+            try {
+                if (!mapper.readTree(input.taskSpecs()).isObject())
+                    throw new BusinessException("任务规格必须是 JSON 对象");
+            } catch (JsonProcessingException ex) {
+                throw new BusinessException("任务规格不是合法 JSON");
+            }
+        }
         dto.setTaskSpecs(input.taskSpecs());
         dto.setPayPassword(payPassword);
         Set<ConstraintViolation<TaskPublishDTO>> failures = validator.validate(dto);
@@ -198,14 +206,14 @@ public class AgentDraftService {
     }
 
     private Snapshot row(Long idOwner, String opId, boolean forUpdate) {
-        String sql = "SELECT operation_id,user_id,campus_id,mode,payload_json,confirm_token_hash," +
+        String sql = "SELECT operation_id,user_id,campus_id,mode,payload_json,payload_hash,confirm_token_hash," +
                 "quoted_service_fee,quoted_goods_budget,quoted_total,expires_at,status,task_id,order_id " +
                 "FROM agent_operation WHERE operation_id=? AND user_id=?" + (forUpdate ? " FOR UPDATE" : "");
         List<Snapshot> found = jdbc.query(sql, (rs, i) -> new Snapshot(rs.getString(1),
                 rs.getLong(2), rs.getLong(3), rs.getString(4), rs.getString(5),
-                rs.getString(6), rs.getBigDecimal(7), rs.getBigDecimal(8), rs.getBigDecimal(9),
-                rs.getTimestamp(10).toLocalDateTime(), rs.getString(11),
-                (Long) rs.getObject(12), (Long) rs.getObject(13)), opId, idOwner);
+                rs.getString(6), rs.getString(7), rs.getBigDecimal(8), rs.getBigDecimal(9), rs.getBigDecimal(10),
+                rs.getTimestamp(11).toLocalDateTime(), rs.getString(12),
+                (Long) rs.getObject(13), (Long) rs.getObject(14)), opId, idOwner);
         if (found.isEmpty()) throw new ForbiddenException("草稿不存在或不属于当前账号");
         return found.get(0);
     }
@@ -218,6 +226,8 @@ public class AgentDraftService {
             throw new ForbiddenException("确认凭证无效");
         Long campus = campuses.requireUserCampus(uid);
         Snapshot snap = row(uid, operationId, true);
+        if (!sha(snap.payload()).equals(snap.payloadHash()))
+            throw new BusinessException("草稿内容校验失败");
         if (!campus.equals(snap.campusId()) ||
                 !MessageDigest.isEqual(sha(token).getBytes(StandardCharsets.US_ASCII),
                         snap.confirmHash().getBytes(StandardCharsets.US_ASCII)))

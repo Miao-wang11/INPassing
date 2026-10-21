@@ -49,6 +49,8 @@ async def test_multiturn_clarification_public_handoff_no_write(settings):
     assert "tip" not in first["slots"]  # total budget never becomes service fee
     assert first["slots"]["category"] == "校内代办"
     assert first["slots"]["sub_type"] == "资料打印"
+    assert first["slots"]["pages"] == 30
+    assert first["slots"]["max_budget"] == 10.0
     second = await graph.ainvoke(
         {"messages": [HumanMessage(content="取件地点：图书馆，地址ID 10，小费5元")]}, cfg
     )
@@ -60,6 +62,7 @@ async def test_multiturn_clarification_public_handoff_no_write(settings):
     assert result["preview_input"]["task"]["tip"] == 5
     assert result["preview_input"]["task"]["deliveryAddressId"] == 10
     assert result["preview_input"]["task"]["expireMinutes"] == 60
+    assert result["preview_input"]["task"]["taskSpecs"] == '{"数量":30}'
     assert "payPassword" not in str(result)
     assert not any("confirm" in p or "publish" in p or "book" in p for p, *_ in java.calls)
 
@@ -160,3 +163,41 @@ def test_no_llm_forged_money_identity_and_invalid_numbers():
                            "campusId": 77, "tip2": 45, "max_budget": 10}) == {
                                "category": "校内代办", "max_budget": 10.0
                            }
+
+
+@pytest.mark.asyncio
+async def test_model_timeout_uses_conservative_rules(settings):
+    _, actor = settings_actor(settings)
+    extractor = DemandExtractor(settings)
+    class TimeoutModel:
+        async def ainvoke(self, messages):
+            raise TimeoutError("provider may be down")
+    extractor.model = TimeoutModel()
+    graph = build_delegation_graph(InMemorySaver(), extractor, FakeJava(), actor)
+    state = await graph.ainvoke(
+        {"messages": [HumanMessage(content="帮我打印30页资料，预算10元")]},
+        {"configurable": {"thread_id": "degraded-model"}}
+    )
+    assert state["model_degraded"] is True
+    assert state["status"] == "needs_clarification"
+    assert state["slots"]["pages"] == 30
+    assert "tip" not in state["slots"]
+
+
+@pytest.mark.asyncio
+async def test_expired_or_wrong_category_offer_never_promoted(settings):
+    _, actor = settings_actor(settings)
+    now = datetime.now(ZoneInfo("Asia/Shanghai")).replace(tzinfo=None)
+    java = FakeJava([{
+        "offerId": 77, "category": "校内代办", "subType": "资料打印",
+        "title": "打印", "servicePrice": 2,
+        "availableFrom": (now-timedelta(days=2)).isoformat(),
+        "availableUntil": (now-timedelta(days=1)).isoformat(),
+    }])
+    graph = build_delegation_graph(InMemorySaver(), DemandExtractor(settings), java, actor)
+    state = await graph.ainvoke(
+        {"messages": [HumanMessage(content="帮我打印20页资料，取件地点：图书馆，地址ID 10，小费4元")]},
+        {"configurable": {"thread_id": "expired-offer"}}
+    )
+    assert "__interrupt__" in state
+    assert state["__interrupt__"][0].value["offers"] == []
