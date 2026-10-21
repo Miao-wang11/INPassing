@@ -45,12 +45,11 @@ class AgentReadOnlyHttpTest {
         String ts = Long.toString(Instant.now().getEpochSecond());
         String nonce = UUID.randomUUID().toString();
         String target = "/internal/agent/v1/tasks/search";
-        mvc.perform(get("/internal/agent/v1/tasks/search").param("keyword", "paper")
+        mvc.perform(get("/internal/agent/v1/tasks/search")
                         .header("X-Agent-Principal", principal)
                         .header("X-Agent-Timestamp", ts)
                         .header("X-Agent-Nonce", nonce)
                         .header("X-Agent-Signature", wire.signature("GET", target, principal, ts, nonce)))
-                .andDo(org.springframework.test.web.servlet.result.MockMvcResultHandlers.print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.records[0].taskId").value(31))
                 .andExpect(jsonPath("$.data.records[0].contactPhone").doesNotExist())
