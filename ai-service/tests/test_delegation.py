@@ -201,3 +201,11 @@ async def test_expired_or_wrong_category_offer_never_promoted(settings):
     )
     assert "__interrupt__" in state
     assert state["__interrupt__"][0].value["offers"] == []
+
+
+def test_deadline_is_recorded_but_never_misrepresented_as_enforced():
+    from app.agent.delegation import DemandExtractor
+    data = DemandExtractor._rule_extract("明天下午四点前帮我打印三十页资料")
+    assert "明天下午四点前" in data["deadline_text"]
+    assert data["pages"] == 30
+    assert "delivery_address_id" not in data

@@ -91,8 +91,9 @@ public class AgentReadOnlyService {
     public PageResult<OfferCard> offers(Long uid, String category, int page, int size) {
         Long campusId = campuses.requireUserCampus(uid);
         PageResult<ServiceOfferService.OfferView> raw = offers.hall(uid, category, page, size);
-        List<OfferCard> cards = raw.getRecords().stream().map(v -> {
-            if (!campusId.equals(v.campusId()) || v.status() != 1) {
+        List<OfferCard> cards = raw.getRecords().stream()
+                .filter(v -> !uid.equals(v.providerId())).map(v -> {
+            if (!campusId.equals(v.campusId()) || v.status() != 1 || uid.equals(v.providerId())) {
                 throw new ForbiddenException("服务校区或状态不合法");
             }
             return new OfferCard(v.id(), v.category(), v.subType(), safeText(v.title()),

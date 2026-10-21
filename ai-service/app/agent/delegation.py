@@ -143,8 +143,11 @@ class DemandExtractor:
                 amount = DemandExtractor._chinese_number(cap_han.group(1))
                 if amount is not None:
                     values["max_budget"] = float(amount)
-        if "明天" in message or "今晚" in message or "截止" in message or "点前" in message:
-            values["deadline_text"] = "用户要求的时间（当前任务表不具有可强制的交付截止字段）"
+        deadline = re.search(r"((?:今天|明天|后天|今晚)[^，,。；;]{0,24}?(?:点前|点之前|之前|前|截止))", message)
+        if deadline:
+            values["deadline_text"] = deadline.group(1)
+        elif "今晚" in message:
+            values["deadline_text"] = "今晚（具体时间未确认）"
         if any(x in message for x in ("帮我", "需要", "想要", "请人", "打印", "咖啡", "奶茶")):
             values["description"] = message[:256]
         return values

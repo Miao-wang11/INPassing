@@ -85,4 +85,25 @@ class AgentReadOnlyServiceTest {
         task.setCampusId(9L);
         assertThrows(ForbiddenException.class, () -> service.taskDetail(3L, 88L));
     }
+    @Test
+    void ownStorefrontIsNotRecommendedOrReturnedAsMatch() {
+        var campuses = mock(CampusCatalogService.class);
+        var offers = mock(ServiceOfferService.class);
+        when(campuses.requireUserCampus(3L)).thenReturn(7L);
+        var own = new ServiceOfferService.OfferView(50L,3L,7L,"本人",
+                "校内代办","资料打印","本人打印","打印",new java.math.BigDecimal("2.00"),
+                LocalDateTime.now().minusHours(1),LocalDateTime.now().plusDays(1),1);
+        var other = new ServiceOfferService.OfferView(51L,4L,7L,"其他学生",
+                "校内代办","资料打印","打印","打印",new java.math.BigDecimal("3.00"),
+                LocalDateTime.now().minusHours(1),LocalDateTime.now().plusDays(1),1);
+        when(offers.hall(3L, "校内代办",1,10))
+                .thenReturn(new PageResult<>(2L,List.of(own,other)));
+        when(offers.detail(3L,50L)).thenReturn(own);
+        var service = new AgentReadOnlyService(campuses,mock(TaskService.class),offers,
+                mock(RunnerProfileMapper.class),mock(TaskMapper.class),mock(UserMapper.class));
+        var actual = service.offers(3L,"校内代办",1,10);
+        assertEquals(1,actual.getRecords().size());
+        assertEquals(51L,actual.getRecords().get(0).offerId());
+        assertThrows(ForbiddenException.class, () -> service.offerDetail(3L,50L));
+    }
 }
