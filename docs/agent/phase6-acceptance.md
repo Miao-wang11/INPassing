@@ -17,7 +17,16 @@ Verification categories MUST remain distinct:
    separately labeled. Synthetic fixtures are for algorithm safety only.
    Do **not** claim measured success rate, precision gain, matching efficiency
    or actual campus ETA accuracy from synthetic examples.
-3. **Missing real validation:** an actual paid-model API integration,
+3. **Disposable actual simulated-wallet HTTP integration:** CI run
+   https://github.com/Miao-wang11/INPassing/actions/runs/39605471203
+   uses demo-seeded students, real JWT->Java->Python->signed Java, MySQL,
+   Redis and TaskService/PaymentService to create a public task. Verified
+   balance stays ¥100.00 at preview and with wrong password; after correct
+   confirm balance becomes ¥95.00; a duplicate confirm returns the same
+   task and does not debit again. Another same-campus user and another
+   campus cannot read that operation. This does NOT validate storefront
+   booking with actual ServiceOfferService or production LLM.
+4. **Missing real validation:** an actual paid-model API integration,
    independently measured campus walking-network edges, mobile HBuilderX
    physical device UI, certified-user wallet balance and order/booking
    transaction on an isolated all-service deployment. Requires real,
@@ -47,17 +56,20 @@ not just one synthetic example.
 
 - [ ] Verify the fresh Compose database has the Agent operation and walk tables after init. Historical `20261020` ALTER scripts must **not** run after the full `runningerrands.sql`; use a backup and schema-specific migration check for existing volumes.
 
-- [ ] In an isolated sandbox, complete Java, Python, MySQL and Redis
-      startup and valid signed Java↔Python chat exchange for a certified
-      mock/test student account; verify old task hall and service storefront.
+- [x] CI disposable full Java+Python+MySQL+Redis started and signed chat
+      succeeded with a demo-certified student. Existing task hall and
+      storefront full UI regression still needs a physical app smoke test.
 - [ ] Validate the ten-minute quote expiry round trip on both UTC containers and local Asia/Shanghai business time; MySQL DATETIME must be read as `LocalDateTime` with no implicit timezone conversion.
-- [ ] With two certified campus-scoped accounts and non-production fake
-      wallet balances, preview an Agent public task; verify no task/order/
-      wallet write before explicit confirmation.
-- [ ] After Java confirmation, verify real taskId and debit against database,
-      then repeat exactly the same operation/token twice and concurrently;
-      verify one debit, one task and stored receipt.
-- [ ] A second account or different campus cannot see/confirm that draft.
+- [x] CI disposable demo user previewed a public-task draft. Verified
+      PREPARED has no taskId and original ¥100.00 wallet balance remains.
+- [x] CI disposable real TaskService/PaymentService publishes one task,
+      balance ¥100.00→¥95.00, repeat confirmation returns same task and
+      stored receipt without extra debit. **Concurrent full TaskService HTTP
+      acceptance remains untested**; separate InnoDB test covers lock with
+      mocked TaskService.
+- [x] CI demo same-campus second user and separate-campus student cannot
+      inspect the original draft. Full cross-account confirm still needs a
+      direct negative HTTP test.
 - [ ] Create a *valid* service offer; after quoting, take it offline/change
       its price; verify the transaction rejects, no wallet debit.
 - [ ] Put a task in a completed, claimed, expired, or withdrawn state;
