@@ -169,6 +169,13 @@ jobs:
             -e SHUNSHOU_E2E_ISOLATED=yes \
             -e SHUNSHOU_E2E_DEMO_PASSWORD="$SHUNSHOU_DEMO_PASSWORD" \
             ai-service python - < ai-service/tests/e2e_compose.py
+      - name: Diagnose failed isolated Java integration without dumping secrets
+        if: failure()
+        run: |
+          docker compose --env-file docker/.env.example -f docker/docker-compose.yml logs --no-color --tail=220 backend 2>/dev/null \
+            | grep -E '(系统异常|Caused by:|Exception:|SQLIntegrityConstraintViolationException|JdbcSQL|Table .*doesn|Unknown column|agent_operation)' \
+            | sed -E 's/[a-f0-9]{64}/[HASH_REDACTED]/g' \
+            | tail -n 35 || true
       - name: Teardown isolated CI volumes
         if: always()
         run: docker compose --env-file docker/.env.example -f docker/docker-compose.yml down -v --remove-orphans
