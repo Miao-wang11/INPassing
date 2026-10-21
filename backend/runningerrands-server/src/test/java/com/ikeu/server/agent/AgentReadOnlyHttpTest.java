@@ -37,7 +37,7 @@ class AgentReadOnlyHttpTest {
         var interceptor = new AgentInternalAuthInterceptor(wire, campus, redis);
         var mvc = MockMvcBuilders.standaloneSetup(new AgentReadOnlyController(service))
                 .addInterceptors(interceptor).build();
-        mvc.perform(get("/internal/agent/v1/tasks/search").param("keyword", "paper"))
+        mvc.perform(get("/internal/agent/v1/tasks/search").queryParam("keyword", "paper"))
                 .andExpect(status().isUnauthorized());
         verifyNoInteractions(service);
 

@@ -29,7 +29,7 @@ def test_uvicorn_socket_http(tmp_path):
     base = f"http://127.0.0.1:{port}"
     try:
         deadline = time.monotonic() + 15
-        with httpx.Client(timeout=1) as client:
+        with httpx.Client(timeout=1, base_url=base) as client:
             while time.monotonic() < deadline:
                 if proc.poll() is not None:
                     raise AssertionError(f"uvicorn exited: {proc.stderr.read()[-2000:]}")

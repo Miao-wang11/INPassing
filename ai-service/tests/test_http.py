@@ -79,6 +79,8 @@ async def test_actual_asgi_http_auth_multiturn_and_replay(settings):
             expired = principal(secret, expires=int(time.time()) - 5)
             req = signed(client, "POST", path, secret, expired, payload=payload)
             assert (await client.send(req)).status_code == 401
-            invalid_body = signed(client, "POST", path, secret, actor, payload=payload)
-            invalid_body.content = b'{"message":"tampered"}'  # signature binds to the original JSON
-            assert (await client.send(invalid_body)).status_code == 401
+            original = signed(client, "POST", path, secret, actor, payload=payload)
+            changed = client.build_request("POST", path, json={"message": "tampered"})
+            for name in ("X-Agent-Principal", "X-Agent-Timestamp", "X-Agent-Nonce", "X-Agent-Signature"):
+                changed.headers[name] = original.headers[name]
+            assert (await client.send(changed)).status_code == 401
