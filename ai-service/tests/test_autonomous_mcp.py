@@ -64,7 +64,11 @@ def make_handler(settings):
                 self.end_headers()
                 return
             if path == "matching/candidates":
-                task_list = [TASK] if available else []
+                task_list = ([TASK, {**TASK, "taskId": 8,
+                   "pickupArea": "南门", "deliveryArea": "教学楼",
+                   "tip": "12.00", "deliveryFee": "1.00", "reward": "40.00"}]
+                   if MAP_MODE["mode"] == "two" and available else
+                   [TASK] if available else [])
                 data = {"examined": len(task_list), "totalBeforeEligibility": len(task_list),
                         "morePages": False, "records": task_list}
             elif path == "matching/network":
@@ -81,12 +85,18 @@ def make_handler(settings):
                     {"from": 2, "to": 3, "distanceMeters": 150, "verifiedAt": "2026-01-01"},
                     {"from": 1, "to": 3, "distanceMeters": 250, "verifiedAt": "2026-01-01"},
                 ]
+                if MAP_MODE["mode"] == "two":
+                    edges.append({"from": 3, "to": 2, "distanceMeters": 850,
+                                  "verifiedAt": "2026-01-01"})
                 if MAP_MODE["mode"] == "unverified":
                     edges = []
                 data = {"campusId": actor.campus_id, "places": places, "edges": edges}
-            elif path == "tasks/7" and actor.campus_id == 1:
-                data = TASK
-            elif path == "tasks/7/eligibility" and actor.campus_id == 1:
+            elif path in ("tasks/7", "tasks/8") and actor.campus_id == 1:
+                data = TASK if path == "tasks/7" else {
+                    **TASK, "taskId": 8, "pickupArea": "南门",
+                    "deliveryArea": "教学楼", "tip": "12.00",
+                    "deliveryFee": "1.00", "reward": "40.00"}
+            elif path in ("tasks/7/eligibility", "tasks/8/eligibility") and actor.campus_id == 1:
                 data = {"canAttempt": True, "reason": "PREVIEW_ONLY"}
             else:
                 self.send_response(403)
