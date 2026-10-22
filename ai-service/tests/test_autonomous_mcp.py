@@ -15,6 +15,8 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 from langchain_core.messages import AIMessage, ToolMessage
 from pydantic import SecretStr
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from app.agent.autonomous_route import run_agent
 from app.config import Settings
@@ -173,8 +175,10 @@ class ReasoningModelStub:
 
 
 def run(settings, identity, model, cap=10):
+    departure = (datetime.now(ZoneInfo("Asia/Shanghai")) + timedelta(minutes=45)).isoformat()
     return asyncio.run(run_agent(settings, identity, {
         "origin": "图书馆", "destination": "南门", "max_detour_minutes": cap,
+        "departure_at": departure,
     }, [], model=model))
 
 
