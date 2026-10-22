@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, model_validator
 from app.clients.java_backend import JavaReadOnlyClient, JavaToolError
 from app.config import Settings
 from app.agent.delegation import DemandExtractor, build_delegation_graph
-from app.agent.route_matching import RouteExtractor, build_route_graph
+from app.agent.autonomous_route import build_autonomous_graph
 from app.security import Actor, NonceGuard, WireSecurity, require_actor
 from app.tools.read_only import build_read_only_tools
 
@@ -65,7 +65,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI):
         app.state.wire = WireSecurity(settings)
         app.state.extractor = DemandExtractor(settings)
-        app.state.route_extractor = RouteExtractor(settings)
         app.state.nonces = NonceGuard()
         settings.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
         async with httpx.AsyncClient(
@@ -139,8 +138,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if saver is None:
             raise HTTPException(status_code=503, detail="Checkpoint unavailable")
         session_id = payload.session_id or uuid.uuid4()
-        graph = build_route_graph(saver, request.app.state.route_extractor,
-                                  request.app.state.java_tools, actor)
+        graph = build_autonomous_graph(saver, settings, actor)
         config = {"configurable": {"thread_id":
             f"route:user:{actor.user_id}:campus:{actor.campus_id}:session:{session_id}"},
             "recursion_limit": 8}
@@ -158,11 +156,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     {"messages": [HumanMessage(content=payload.message.strip())]}, config=config)
             if "__interrupt__" in state:
                 pause = state["__interrupt__"][0].value
+                snapshot = await graph.aget_state(config)
+                saved = snapshot.values or {}
                 return {
                     "session_id": session_id, "status": "choose_task",
-                    "answer": "请从已验证或路线待核实的任务中选择；此操作不会自动接单。",
+                    "answer": saved.get("answer", "请选择经工具核实的任务；此操作不会自动接单。"),
                     "verified": pause.get("verified", []),
                     "unverified": pause.get("unverified", []),
+                    "events": saved.get("events", []),
+                    "limitations": saved.get("limitations", []),
                     "requires_final_java_accept": True,
                 }
             return {"session_id": session_id, "status": state.get("status"),
@@ -172,6 +174,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "unverified": state.get("unverified", []),
                     "selected": state.get("selected"),
                     "limitations": state.get("limitations", []),
+                    "events": state.get("events", []),
                     "model_degraded": state.get("model_degraded", False),
                     "requires_final_java_accept": state.get("status") == "ready_for_java_accept"}
         except HTTPException:
