@@ -3,10 +3,12 @@ on:
   push:
     branches:
       - codex/autonomous-campus-agent
+      - codex/agent-constraints-and-explanations
   pull_request:
     paths:
       - 'ai-service/**'
       - 'backend/**'
+      - 'mobile/**'
       - '.github/workflows/agent-mcp.yml'
 jobs:
   agent-tests:
@@ -41,3 +43,14 @@ jobs:
           cache-dependency-path: backend/pom.xml
       - name: Compile backend without running database tests
         run: mvn -B -ntp -f backend/pom.xml -DskipTests package
+
+  mobile-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify route explanation UI contract
+        run: node --test mobile/tests/route-explanation.test.mjs
