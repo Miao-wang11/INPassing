@@ -59,6 +59,10 @@ class JavaReadOnlyClient:
         logger.info("java_readonly_tool_done", extra={
             "request_id": request_id, "trace_id": trace_id,
             "http_status": response.status_code, "latency_ms": round((time.monotonic() - start) * 1000)})
+        if response.status_code == 429:
+            raise JavaToolError("RATE_LIMITED")
+        if response.status_code in (408, 504):
+            raise JavaToolError("TIMEOUT")
         if response.status_code == 401 or response.status_code == 403:
             raise JavaToolError("UNAUTHORIZED")
         if response.status_code >= 500 or response.is_redirect:

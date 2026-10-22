@@ -1,0 +1,43 @@
+name: Agent MCP validation
+on:
+  push:
+    branches:
+      - codex/autonomous-campus-agent
+  pull_request:
+    paths:
+      - 'ai-service/**'
+      - 'backend/**'
+      - '.github/workflows/agent-mcp.yml'
+jobs:
+  agent-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install Agent dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ./ai-service pytest
+      - name: Test actual MCP stdio protocol and model decisions
+        working-directory: ai-service
+        run: python -m pytest -q tests/test_autonomous_mcp.py
+  java-compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - name: Compile backend without running database tests
+        run: mvn -B -ntp -f backend/pom.xml -DskipTests package

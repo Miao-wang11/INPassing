@@ -11,6 +11,8 @@
 ![MIT](https://img.shields.io/badge/License-MIT-blue)
 
 > [!IMPORTANT]
+> **自主顺路 Agent 分支**：真实 MCP stdio 工具调用、DeepSeek 工具决策循环和 Windows Conda 非 Docker 启动详见 [顺路 Agent 本机部署与验收](docs/AUTONOMOUS_AGENT_WINDOWS.md)。智能委托仍保留原有流程，暂未改造。本分支没有真实 DeepSeek/腾讯实时路线/HBuilderX 联调结论。
+>
 > **本项目目前主要用于学习、开发和演示。** 钱包、支付、退款和结算均为**模拟资金流程**，不接入真实收付款。真实大模型效果、校园路线数据与移动端真机体验仍需进一步验证。
 
 ## 目录
@@ -55,7 +57,7 @@
 - **高并发接单**：Redisson 分布式锁结合 MySQL 事务与条件更新（CAS），防止多个请求重复接取同一任务。
 - **Redis 缓存优化**：通过 Spring Cache 缓存热点数据，结合空值缓存、互斥锁与双重检查缓解缓存穿透、击穿。
 - **实时通信与权限**：基于 WebSocket + STOMP 推送私信和通知，并校验用户身份与校区边界。
-- **可控 Agent**：基于 LangGraph 进行多轮状态管理、结构化信息提取与 Human-in-the-Loop 确认；交易写操作始终由 Java 业务服务执行。
+- **顺路自主 Agent（独立改造分支）**：DeepSeek 真正接收 MCP 工具 schema、主动输出 tool_calls；Python 经 MCP stdio 调用受 Java 权限保护的工具，把 ToolMessage 返回模型，并按实际证据校验最终候选，用户点击后才由 Java 接单。智能委托保留旧流程。
 - **容器化部署**：使用多阶段 Dockerfile 构建前后端，通过 Docker Compose 统一编排应用、数据库、缓存和代理服务。
 
 ## 技术栈

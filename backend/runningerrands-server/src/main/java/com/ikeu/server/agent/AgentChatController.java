@@ -81,7 +81,7 @@ public class AgentChatController {
             if (!("http".equals(endpoint.getScheme()) || "https".equals(endpoint.getScheme()))) {
                 throw new IllegalArgumentException("Agent endpoint scheme not allowed");
             }
-            HttpRequest request = HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(20))
+            HttpRequest request = HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(65))
                     .header("Content-Type", "application/json")
                     .header("X-Agent-Principal", principal)
                     .header("X-Agent-Timestamp", timestamp)
