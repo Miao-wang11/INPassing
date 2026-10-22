@@ -6,7 +6,8 @@ import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
-from app.agent.route_matching import _card, _fee
+from app.agent.route_matching import _card, _fee, _number
+from app.agent.route_goal import needs_unknown_confirmation
 
 FIELDS = {"serviceFee", "estimatedDetourMinutes", "type", "pickupArea",
           "deliveryArea", "expireTime"}
@@ -66,6 +67,11 @@ def _sanitize_text(text, refs, seen_ids, slots, *, allow_user_limit=True):
         mins = float(match.group(1))
         if not any(_same(mins, v) for v in times):
             raise ValueError("FABRICATED_DETOUR")
+    for match in re.finditer(r"([零一二三四五六七八九十两]{1,4})\\s*(分钟|元)", text):
+        n = _number(match.group(1).replace("两", "二"))
+        values = times if match.group(2) == "分钟" else fees
+        if n is None or not any(_same(n, v) for v in values):
+            raise ValueError("UNSUPPORTED_CHINESE_NUMERAL")
     if re.search(r"轻便|很轻|不会排队|不用等|保证|最快|肯定|门禁正常", text):
         raise ValueError("UNVERIFIED_UNKNOWN_CLAIM")
     return text.strip()
@@ -126,6 +132,8 @@ def _check_comparatives(summary, recommended, excluded, looked_up, estimates):
 
 
 def validate_recommendation(payload, *, seen, looked_up, eligible, estimates, slots):
+    if needs_unknown_confirmation(slots):
+        raise ValueError("UNVERIFIABLE_HARD_REQUIREMENT")
     ids = payload.get("task_ids", [])
     if not ids or len(ids) != len(set(ids)) or len(ids) > 3:
         raise ValueError("INVALID_RECOMMENDATION")
