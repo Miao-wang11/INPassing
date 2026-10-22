@@ -193,6 +193,10 @@ async def run_agent(settings, actor, slots, history, *, model=None,
                             route = estimates[task_id]
                             cap = slots.get("max_detour_minutes")
                             minutes = route.get("estimatedDetourMinutes")
+                            # A non-negotiable detour cap requires actual route evidence.
+                            # "Unknown" may never be promoted into a compliant recommendation.
+                            if cap is not None and route.get("routeVerified") is not True:
+                                raise ValueError("ROUTE_UNVERIFIED_FOR_LIMIT")
                             if route.get("routeVerified") and (
                                 not isinstance(minutes, (int, float)) or
                                 (cap is not None and minutes > cap)
@@ -305,6 +309,12 @@ async def run_agent(settings, actor, slots, history, *, model=None,
                   "answer": "本轮达到 Agent 查询或时间上限，尚不能保证存在符合条件的任务。请调整搜索条件或重新查询。",
                   "verified": [], "unverified": []}
         limits.append("只检索有限候选，不能声称全库最优。")
+    if (result["status"] == "no_candidates" and any(
+            e["tool"] == "present_candidates"
+            and e["summary"].get("result") == "ROUTE_UNVERIFIED_FOR_LIMIT"
+            for e in events)):
+        result["status"] = "needs_clarification"
+        result["answer"] = "本轮路线缺少可信绕路时间，无法证明满足用户的最大绕路限制，暂不推荐任务；请补充可核实的地点或稍后重试。"
     if (result["status"] == "no_candidates"
             and any(e["status"] == "failed" and e["tool"] in
                     ("search_tasks", "get_task_detail", "check_accept_eligibility",
