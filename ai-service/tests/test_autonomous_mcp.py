@@ -256,7 +256,7 @@ def test_route_network_absence_does_not_invent_minutes(service):
     assert result["unverified"][0]["routeVerified"] is False
 
 
-@pytest.mark.parametrize("mode,expected", [("failure", "MCP_TOOL_ERROR"),
+@pytest.mark.parametrize("mode,expected", [("failure", "BACKEND_UNAVAILABLE"),
                                          ("rate_limit", "RATE_LIMITED"),
                                          ("timeout", "TIMEOUT")])
 def test_failures_never_turn_into_fake_no_results(service, mode, expected):
