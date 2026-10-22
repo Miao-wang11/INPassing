@@ -21,7 +21,7 @@ RELATIVE = re.compile(r"(?:我的|我们|自己|附近|这边|那边|某个|随�
 LIMIT_SIGNAL = re.compile(r"(?:绕路|绕行|额外.*?(?:时间|分钟)|放宽.{0,8}分钟)")
 TYPE_SIGNAL = re.compile(r"(?:只接|仅接|仅限|必须|只要|不要|不接)")
 HARD_WEIGHT = re.compile(r"(?:只.{0,8}(?:轻|重量|公斤|千克)|不能.{0,8}重|重量.{0,8}(?:不超过|以内))")
-HARD_WAIT = re.compile(r"(?:不排队|不能等|等待.{0,5}(?:不超过|最多|以内))")
+HARD_WAIT = re.compile(r"(?:不排队|不能等|(?:排队|等待|等候).{0,8}(?:不超过|不能超过|别超过|最多|以内)|最多.{0,2}等)")
 
 
 class GoalChange(BaseModel):
@@ -92,9 +92,10 @@ def _departure_ok(value: str, evidence: str, now: datetime) -> bool:
         at = parsed.astimezone(ZONE)
         if not now < at <= now + timedelta(days=8):
             return False
-        if not ("出发" in evidence or "动身" in evidence or
-                "明天" in evidence or "今天" in evidence or "后天" in evidence or
-                re.search(r"\d{1,2}点", evidence)):
+        # A delivery deadline / ETA must never be adopted as departure.
+        if re.search(r"最晚|送达|送到|到达|交付|截止", evidence):
+            return False
+        if not re.search(r"出发|动身|启程|离开", evidence):
             return False
         if ("后出发" in evidence or "后动身" in evidence) and "分钟" in evidence:
             n = _minutes_from_evidence(evidence)
