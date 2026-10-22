@@ -110,7 +110,7 @@ def _check_comparatives(summary, recommended, excluded, looked_up, estimates):
     for tid in excluded:
         facts = _facts(tid, looked_up, estimates)
         for segment in re.split(r"[。；;]", summary):
-            if not re.search(r"任务\\s*[#＃:]?\\s*" + str(tid) + r"(?!\\d)", segment):
+            if not re.search(r"任务\s*[#＃:]?\s*" + str(tid) + r"(?!\d)", segment):
                 continue
             if "更高" in segment and (
                 facts["serviceFee"] is None or baseline["serviceFee"] is None or
