@@ -67,7 +67,7 @@ def _sanitize_text(text, refs, seen_ids, slots, *, allow_user_limit=True):
         mins = float(match.group(1))
         if not any(_same(mins, v) for v in times):
             raise ValueError("FABRICATED_DETOUR")
-    for match in re.finditer(r"([零一二三四五六七八九十两]{1,4})\\s*(分钟|元)", text):
+    for match in re.finditer(r"([零一二三四五六七八九十两]{1,4})\s*(分钟|元)", text):
         n = _number(match.group(1).replace("两", "二"))
         values = times if match.group(2) == "分钟" else fees
         if n is None or not any(_same(n, v) for v in values):
