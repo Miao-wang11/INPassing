@@ -38,7 +38,10 @@ PRESENT_TOOL = {
             "properties": {
                 "task_ids": {"type": "array", "items": {"type": "integer", "minimum": 1},
                              "maxItems": 3},
-                "reasons": {"type": "object", "additionalProperties": {"type": "string"}},
+                "reason_tags": {"type": "object", "additionalProperties": {
+                    "type": "array", "items": {"type": "string",
+                    "enum": ["detour", "reward", "location"]}, "uniqueItems": True,
+                    "maxItems": 3}},
                 "answer": {"type": "string"},
             },
             "required": ["task_ids", "answer"],
@@ -189,15 +192,26 @@ async def run_agent(settings, actor, slots, history, *, model=None,
                                 (cap is not None and minutes > cap)
                             ):
                                 raise ValueError("DETOUR_LIMIT")
-                            reason = (params.get("reasons") or {}).get(str(task_id), "")
+                            tags = (params.get("reason_tags") or {}).get(str(task_id), [])
+                            basis = ["已检索到公开任务、核对详情并通过接单资格预检"]
+                            if route.get("routeVerified"):
+                                basis.append(f"工具估算单任务绕路 {minutes} 分钟（非实时保证）")
+                            else:
+                                basis.append("路线暂无法核实，不保证满足绕路上限")
+                            if "reward" in tags:
+                                basis.append("报酬来自 Java 任务数据")
+                            if "location" in tags:
+                                basis.append("起终点来自任务详情和用户目标")
+                            basis.append("重量和排队等待时间未知")
                             card = _card(looked_up[task_id],
                                          minutes if route.get("routeVerified") else None,
-                                         None, str(reason)[:150] or "已查询任务、资格和路线依据")
+                                         None, "；".join(basis))
                             cards.append(card)
                         event["status"] = "succeeded"
                         verified = [c for c in cards if c["routeVerified"]]
                         unverified = [c for c in cards if not c["routeVerified"]]
-                        return {"status": "choose_task", "answer": _safe_answer(params["answer"]),
+                        return {"status": "choose_task",
+                                "answer": f"Agent 根据本轮工具证据选择了{len(cards)}个候选（按其综合判断排序）；请核对路线与未知条件。",
                                 "verified": verified, "unverified": unverified}
                     if name not in registry:
                         raise ValueError("TOOL_NOT_ALLOWED")
@@ -285,6 +299,10 @@ async def run_agent(settings, actor, slots, history, *, model=None,
                   "answer": "本轮达到 Agent 查询或时间上限，尚不能保证存在符合条件的任务。请调整搜索条件或重新查询。",
                   "verified": [], "unverified": []}
         limits.append("只检索有限候选，不能声称全库最优。")
+    if (result["status"] == "no_candidates" and not seen
+            and any(e["status"] == "failed" and e["tool"] == "search_tasks" for e in events)):
+        result["status"] = "lookup_unavailable"
+        result["answer"] = "任务查询工具出现故障，不能判定没有合适的任务；请重试。"
     result.update({"limitations": limits + [f"本轮搜索页：{searched_pages}；检查记录：{examined}；唯一候选：{len(seen)}。"],
                    "events": _limited_events(events), "model_degraded": False})
     return result
