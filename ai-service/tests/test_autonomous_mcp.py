@@ -597,3 +597,30 @@ def test_false_directional_pay_comparison_rejected():
             slots={"origin": "图书馆", "destination": "南门",
                    "departure_at": (now + timedelta(hours=1)).isoformat(),
                    "max_detour_minutes": 10})
+
+
+def test_delivery_deadline_is_not_departure_and_vague_distance_stays_ambiguous():
+    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    tomorrow = (now + timedelta(days=1)).replace(hour=17, minute=0, second=0, microsecond=0)
+    goal, errors = apply_goal_patch(
+        "明天下午五点最晚送达，别太远",
+        {"origin": "图书馆", "destination": "南门", "max_detour_minutes": 10},
+        GoalPatch(changes=[
+            change("departure_at", tomorrow.isoformat(), "明天下午五点最晚送达"),
+        ]), now=now)
+    assert goal["max_detour_minutes"] == 10
+    assert "departure_at" not in goal
+    assert "departure_at" in errors
+    assert "max_detour_minutes" in errors
+    assert "delivery_deadline" in errors
+
+
+def test_explicit_user_removal_of_unverifiable_weight_requirement():
+    first, errors = apply_goal_patch(
+        "只能拿轻的", {}, GoalPatch(changes=[
+            change("weight_requirement", "只能拿轻的", "只能拿轻的")]))
+    assert first["weight_requirement"] == "只能拿轻的"
+    cleared, errors2 = apply_goal_patch(
+        "取消重量限制", first, GoalPatch(changes=[
+            change("weight_requirement", "__CLEAR__", "取消重量限制")]))
+    assert not errors2 and "weight_requirement" not in cleared
