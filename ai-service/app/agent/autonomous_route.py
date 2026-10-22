@@ -85,6 +85,12 @@ def _model(settings):
 
 def _tool_document(result):
     if getattr(result, "isError", False):
+        # Server-side exception messages are untrusted. Surface ONLY known error categories.
+        message = " ".join(str(getattr(b, "text", "")) for b in result.content)
+        for category in ("RATE_LIMITED", "TIMEOUT", "UNAUTHORIZED",
+                         "BACKEND_UNAVAILABLE", "BUSINESS_REJECTED"):
+            if category in message:
+                raise ValueError(category)
         raise ValueError("MCP_TOOL_ERROR")
     structured = getattr(result, "structuredContent", None)
     if structured is not None:
@@ -299,10 +305,12 @@ async def run_agent(settings, actor, slots, history, *, model=None,
                   "answer": "本轮达到 Agent 查询或时间上限，尚不能保证存在符合条件的任务。请调整搜索条件或重新查询。",
                   "verified": [], "unverified": []}
         limits.append("只检索有限候选，不能声称全库最优。")
-    if (result["status"] == "no_candidates" and not seen
-            and any(e["status"] == "failed" and e["tool"] == "search_tasks" for e in events)):
+    if (result["status"] == "no_candidates"
+            and any(e["status"] == "failed" and e["tool"] in
+                    ("search_tasks", "get_task_detail", "check_accept_eligibility",
+                     "estimate_task_detour", "resolve_campus_place") for e in events)):
         result["status"] = "lookup_unavailable"
-        result["answer"] = "任务查询工具出现故障，不能判定没有合适的任务；请重试。"
+        result["answer"] = "本轮部分查询或路线工具失败，无法验证全部候选；不应据此认为没有任务。请重试。"
     result.update({"limitations": limits + [f"本轮搜索页：{searched_pages}；检查记录：{examined}；唯一候选：{len(seen)}。"],
                    "events": _limited_events(events), "model_degraded": False})
     return result
