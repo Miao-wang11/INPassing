@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 ZONE = ZoneInfo("Asia/Shanghai")
 FIELDS = ("origin", "destination", "departure_at", "max_detour_minutes",
           "required_type", "preferred_type", "weight_requirement",
-          "wait_requirement", "soft_preferences")
+          "wait_requirement", "soft_preferences", "delivery_deadline")
 MANDATORY = ("origin", "destination", "departure_at", "max_detour_minutes")
 RELATIVE = re.compile(r"(?:我的|我们|自己|附近|这边|那边|某个|随便|宿舍$|家$)")
 LIMIT_SIGNAL = re.compile(r"(?:绕路|绕行|额外.*?(?:时间|分钟)|放宽.{0,8}分钟)")
@@ -193,7 +193,8 @@ def apply_goal_patch(message: str, previous: dict, patch: GoalPatch, *,
         uncertain.append("destination")
     if re.search(r"最晚.{0,20}(?:送|到)|送达截止", message) and "delivery_deadline" not in accepted:
         uncertain.append("delivery_deadline")
-    if HARD_WEIGHT.search(message) and "weight_requirement" not in accepted:
+    if (HARD_WEIGHT.search(message) or
+            re.search(r"不能.{0,8}(?:拿|提|搬).{0,8}(?:公斤|千克|重)", message)) and "weight_requirement" not in accepted:
         uncertain.append("weight_requirement")
     if HARD_WAIT.search(message) and "wait_requirement" not in accepted:
         uncertain.append("wait_requirement")
@@ -210,9 +211,8 @@ def missing_goal(slots: dict, uncertain: list[str]) -> list[str]:
 
 def needs_unknown_confirmation(slots: dict) -> list[str]:
     # TaskCard contains no trustworthy weight, queue, handoff or delivery ETA.
-    result = [field for field, signal in (("weight_requirement", HARD_WEIGHT),
-                                         ("wait_requirement", HARD_WAIT))
-              if slots.get(field) and signal.search(slots[field])]
+    result = [field for field in ("weight_requirement", "wait_requirement")
+              if slots.get(field) and not re.search(r"最好|尽量|优先|希望|偏好", slots[field])]
     if slots.get("delivery_deadline"):
         result.append("delivery_deadline")
     return result
