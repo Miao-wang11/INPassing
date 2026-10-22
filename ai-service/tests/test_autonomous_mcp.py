@@ -490,6 +490,14 @@ class ComparisonModel(ReasoningModelStub):
         if name == "check_accept_eligibility" and data["taskId"] == 7:
             return self.call("estimate_task_detour", {"task_id": 7})
         if name == "estimate_task_detour" and data["taskId"] == 7:
+            if self.case == "unfetched":
+                return self.call("present_candidates", {
+                    "task_ids": [7], "recommendations": [{
+                        "task_id": 7, "reason": "绕路4.7分钟，报酬8元",
+                        "evidence": ["estimatedDetourMinutes", "serviceFee"]}],
+                    "excluded": [{"task_id": 8, "reason": "任务8绕路17.3分钟",
+                                  "evidence": ["estimatedDetourMinutes"]}],
+                    "summary": "任务7优先，任务8绕路17.3分钟"})
             return self.call("get_task_detail", {"task_id": 8})
         if name == "get_task_detail" and data["taskId"] == 8:
             return self.call("check_accept_eligibility", {"task_id": 8})
@@ -499,12 +507,17 @@ class ComparisonModel(ReasoningModelStub):
             reason = ("额外绕路4.7分钟，服务报酬8元，满足10分钟上限，重量仍未知。")
             if self.case == "fake_reward":
                 reason = "额外绕路4.7分钟，服务报酬99元，重量未知。"
+            if self.case == "fake_detour":
+                reason = "额外绕路22分钟，服务报酬8元，重量未知。"
             excluded = [{"task_id": 8, "reason": "虽然服务报酬13元，但预计绕路17.3分钟，超过10分钟上限。",
                          "evidence": ["serviceFee", "estimatedDetourMinutes"]}]
             if self.case == "fake_exclusion":
                 excluded[0]["task_id"] = 999
             summary = ("优先任务7：绕路4.7分钟且报酬8元；"
                        "任务8报酬13元更高，但绕路17.3分钟，不符合10分钟上限。")
+            if self.case == "wrong_comparison":
+                summary = ("优先任务7：绕路4.7分钟且报酬8元；"
+                           "任务8报酬13元更短，但绕路17.3分钟。")
             return self.call("present_candidates", {
                 "task_ids": [7],
                 "recommendations": [{"task_id": 7, "reason": reason,
@@ -515,7 +528,8 @@ class ComparisonModel(ReasoningModelStub):
 
 
 @pytest.mark.parametrize("case,accepted", [
-    ("valid", True), ("fake_reward", False), ("fake_exclusion", False)])
+    ("valid", True), ("fake_reward", False), ("fake_detour", False),
+    ("fake_exclusion", False), ("unfetched", False), ("wrong_comparison", False)])
 def test_comparison_explanations_are_evidence_validated(service, case, accepted):
     MAP_MODE["mode"] = "two"
     result = run(service, actor(service, 11, 1), ComparisonModel(case))
@@ -532,3 +546,54 @@ def test_comparison_explanations_are_evidence_validated(service, case, accepted)
         assert not result["verified"]
         assert any(e["tool"] == "present_candidates" and e["status"] == "failed"
                    for e in result["events"])
+
+
+def test_changed_route_recomputes_mcp_context_after_multiturn_graph(service):
+    graph = build_autonomous_graph(InMemorySaver(), service, actor(service, 11, 1),
+                                   model=ReasoningModelStub(),
+                                   goal_interpreter=GoalUnderstandingStub())
+    graph_step(graph, "route-change", "从图书馆去南门，最多绕路10分钟。")
+    changed = graph_step(graph, "route-change", "终点改成东门")
+    assert changed["slots"]["destination"] == "东门"
+    final = graph_step(graph, "route-change", "明天下午五点出发")
+    assert final["slots"]["destination"] == "东门"
+    assert final["slots"]["max_detour_minutes"] == 10
+    assert not final["verified"]
+    assert any(e["tool"] == "estimate_task_detour" for e in final.get("events", []))
+    assert any(e["tool"] == "present_candidates" and e["status"] == "failed"
+               for e in final.get("events", []))
+
+
+def test_expiry_before_departure_is_hard_rejection():
+    from app.agent.recommendation_evidence import validate_recommendation
+    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    task = {**TASK, "expireTime": (now + timedelta(minutes=1)).isoformat()}
+    departure = (now + timedelta(hours=2)).isoformat()
+    with pytest.raises(ValueError, match="TASK_EXPIRES_BEFORE_DEPARTURE"):
+        validate_recommendation({"task_ids": [7]}, seen={7}, looked_up={7: task},
+            eligible={7: True}, estimates={7: {
+                "routeVerified": True, "estimatedDetourMinutes": 4.7}},
+            slots={"origin": "图书馆", "destination": "南门",
+                   "departure_at": departure, "max_detour_minutes": 10})
+
+
+def test_false_directional_pay_comparison_rejected():
+    from app.agent.recommendation_evidence import validate_recommendation
+    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    task8 = {**TASK, "taskId": 8, "tip": "12.00",
+             "deliveryFee": "1.00"}
+    proposal = {
+       "task_ids": [8],
+       "recommendations": [{"task_id": 8, "reason": "服务报酬13元，绕路5分钟",
+                            "evidence": ["serviceFee", "estimatedDetourMinutes"]}],
+       "excluded": [{"task_id": 7, "reason": "报酬8元", "evidence": ["serviceFee"]}],
+       "summary": "任务7报酬8元更高，任务8报酬13元。",
+    }
+    with pytest.raises(ValueError, match="FALSE_COMPARATIVE"):
+        validate_recommendation(proposal, seen={7, 8}, looked_up={7: TASK, 8: task8},
+            eligible={7: True, 8: True},
+            estimates={7: {"routeVerified": True, "estimatedDetourMinutes": 4.7},
+                       8: {"routeVerified": True, "estimatedDetourMinutes": 5}},
+            slots={"origin": "图书馆", "destination": "南门",
+                   "departure_at": (now + timedelta(hours=1)).isoformat(),
+                   "max_detour_minutes": 10})
