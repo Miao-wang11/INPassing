@@ -18,7 +18,9 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from typing_extensions import TypedDict
 
-from app.agent.route_matching import _rule_extract, _valid_slots, _card
+from app.agent.route_matching import _card
+from app.agent.route_goal import GoalInterpreter, apply_goal_patch, missing_goal, needs_unknown_confirmation, ZONE
+from app.agent.recommendation_evidence import validate_recommendation
 
 logger = logging.getLogger(__name__)
 
@@ -32,19 +34,37 @@ PRESENT_TOOL = {
     "type": "function",
     "function": {
         "name": "present_candidates",
-        "description": "Finish with up to 3 candidates you have personally compared. Must have been found in THIS turn's search, fetched by get_task_detail, checked eligible and checked by estimate_task_detour. Model chooses the ranking; executor validates every task ID.",
+        "description": ("结束自主检索。最多选择3个本轮已检索、详情/资格/路线核实的任务；"
+                        "recommendations 按模型决定的推荐顺序逐条写明简短理由并引用字段；"
+                        "excluded 只写本轮真实查看和测过路线的候选；"
+                        "summary 进行基于证据的比较，不要写思维链。"),
         "parameters": {
             "type": "object",
             "properties": {
-                "task_ids": {"type": "array", "items": {"type": "integer", "minimum": 1},
-                             "maxItems": 3},
-                "reason_tags": {"type": "object", "additionalProperties": {
-                    "type": "array", "items": {"type": "string",
-                    "enum": ["detour", "reward", "location"]}, "uniqueItems": True,
-                    "maxItems": 3}},
+                "task_ids": {"type": "array", "items": {"type": "integer", "minimum": 1}, "maxItems": 3},
+                "recommendations": {"type": "array", "maxItems": 3, "items": {
+                    "type": "object", "properties": {
+                        "task_id": {"type": "integer", "minimum": 1},
+                        "reason": {"type": "string", "maxLength": 250},
+                        "evidence": {"type": "array", "items": {"type": "string",
+                            "enum": ["serviceFee", "estimatedDetourMinutes", "type",
+                                     "pickupArea", "deliveryArea", "expireTime"]}},
+                    }, "required": ["task_id", "reason", "evidence"],
+                    "additionalProperties": False}},
+                "excluded": {"type": "array", "maxItems": 3, "items": {
+                    "type": "object", "properties": {
+                        "task_id": {"type": "integer", "minimum": 1},
+                        "reason": {"type": "string", "maxLength": 250},
+                        "evidence": {"type": "array", "items": {"type": "string",
+                            "enum": ["serviceFee", "estimatedDetourMinutes", "type",
+                                     "pickupArea", "deliveryArea", "expireTime"]}},
+                    }, "required": ["task_id", "reason", "evidence"],
+                    "additionalProperties": False}},
+                "summary": {"type": "string", "maxLength": 300},
                 "answer": {"type": "string"},
+                "reason_tags": {"type": "object"}
             },
-            "required": ["task_ids", "answer"],
+            "required": ["task_ids"],
             "additionalProperties": False,
         },
     },
@@ -58,7 +78,8 @@ SYSTEM = """你是顺手校园顺路接单自主 Agent。你决定何时用哪�
 如果不能查证，明确告诉用户缺少什么或检索到了哪些有限页，不得声称全库最优。
 不要通过工具参数传 userId/campusId/口令；不能发布或接单，最终只能由用户点击 Java 确认。
 已核实路网不代表腾讯地图实时数据；估算不保证准时；不要编造组合路线优化。
-你可以先追问必要信息而不调用工具。输出最终结论时简短清晰。"""
+最终推荐调用 present_candidates 时使用 recommendations/excluded/summary 结构，依据同一轮工具证据写简洁、有差异的比较；
+每一条包含可审计字段引用，别写未经核验的任务号码、金钱和分钟，不写内部思维链。"""
 
 
 class RouteState(TypedDict, total=False):
@@ -72,6 +93,11 @@ class RouteState(TypedDict, total=False):
     limitations: list[str]
     events: list[dict]
     model_degraded: bool
+    comparison: list[dict]
+    summary: str
+    explanation_degraded: bool
+    goal_version: int
+    goal_errors: list[str]
 
 
 def _model(settings):
@@ -150,7 +176,7 @@ async def run_agent(settings, actor, slots, history, *, model=None,
             }} for x in registry.values()
         ] + [PRESENT_TOOL]
         bound = model.bind_tools(tools)
-        goal = "已确认用户明示路线与限制（不是模型可随意放宽的约束）：" + json.dumps(
+        goal = "经本轮校验的实际 MCP 路线与限制（绝不可由模型工具结果更改）：" + json.dumps(
             slots, ensure_ascii=False)
         context = [SystemMessage(content=SYSTEM + "\n" + goal)]
         # Small bounded conversation memory, never full unbounded tool transcripts.
@@ -182,47 +208,17 @@ async def run_agent(settings, actor, slots, history, *, model=None,
                 try:
                     if name == "present_candidates":
                         Draft202012Validator(PRESENT_TOOL["function"]["parameters"]).validate(params)
-                        ids = params["task_ids"]
-                        if not ids or len(ids) != len(set(ids)):
-                            raise ValueError("INVALID_RECOMMENDATION")
-                        cards = []
-                        for task_id in ids:
-                            if (task_id not in seen or task_id not in looked_up
-                                    or eligible.get(task_id) is not True or task_id not in estimates):
-                                raise ValueError("UNVERIFIED_TASK_ID")
-                            route = estimates[task_id]
-                            cap = slots.get("max_detour_minutes")
-                            minutes = route.get("estimatedDetourMinutes")
-                            # A non-negotiable detour cap requires actual route evidence.
-                            # "Unknown" may never be promoted into a compliant recommendation.
-                            if cap is not None and route.get("routeVerified") is not True:
-                                raise ValueError("ROUTE_UNVERIFIED_FOR_LIMIT")
-                            if route.get("routeVerified") and (
-                                not isinstance(minutes, (int, float)) or
-                                (cap is not None and minutes > cap)
-                            ):
-                                raise ValueError("DETOUR_LIMIT")
-                            tags = (params.get("reason_tags") or {}).get(str(task_id), [])
-                            basis = ["已检索到公开任务、核对详情并通过接单资格预检"]
-                            if route.get("routeVerified"):
-                                basis.append(f"工具估算单任务绕路 {minutes} 分钟（非实时保证）")
-                            else:
-                                basis.append("路线暂无法核实，不保证满足绕路上限")
-                            if "reward" in tags:
-                                basis.append("报酬来自 Java 任务数据")
-                            if "location" in tags:
-                                basis.append("起终点来自任务详情和用户目标")
-                            basis.append("重量和排队等待时间未知")
-                            card = _card(looked_up[task_id],
-                                         minutes if route.get("routeVerified") else None,
-                                         None, "；".join(basis))
-                            cards.append(card)
+                        explanation = validate_recommendation(
+                            params, seen=seen, looked_up=looked_up,
+                            eligible=eligible, estimates=estimates, slots=slots)
                         event["status"] = "succeeded"
-                        verified = [c for c in cards if c["routeVerified"]]
-                        unverified = [c for c in cards if not c["routeVerified"]]
                         return {"status": "choose_task",
-                                "answer": f"Agent 根据本轮工具证据选择了{len(cards)}个候选（按其综合判断排序）；请核对路线与未知条件。",
-                                "verified": verified, "unverified": unverified}
+                                "answer": explanation["summary"],
+                                "verified": explanation["verified"],
+                                "unverified": explanation["unverified"],
+                                "comparison": explanation["comparison"],
+                                "summary": explanation["summary"],
+                                "explanation_degraded": explanation["explanation_degraded"]}
                     if name not in registry:
                         raise ValueError("TOOL_NOT_ALLOWED")
                     if not isinstance(params, dict):
@@ -326,14 +322,53 @@ async def run_agent(settings, actor, slots, history, *, model=None,
     return result
 
 
-def build_autonomous_graph(checkpointer, settings, actor, *, model=None, mcp_transport=None):
+def build_autonomous_graph(checkpointer, settings, actor, *, model=None, mcp_transport=None,
+                           goal_interpreter=None):
+    interpreter = goal_interpreter or GoalInterpreter(settings)
+
     async def plan(state: RouteState):
         human = next((m.content for m in reversed(state.get("messages", []))
                       if isinstance(m, HumanMessage) and isinstance(m.content, str)), "")
-        slots = {**state.get("slots", {}), **_valid_slots(_rule_extract(human))}
+        old = state.get("slots", {})
+        from datetime import datetime
+        now = datetime.now(ZONE)
+        try:
+            patch = await interpreter.extract(human, old, now)
+            slots, uncertain = apply_goal_patch(human, old, patch, now=now)
+        except Exception:
+            logger.exception("goal_interpretation_failed")
+            return {"status": "lookup_unavailable",
+                    "answer": "暂时无法核验你的路线和硬性要求，请重试；不会按猜测条件搜索。",
+                    "verified": [], "unverified": [], "comparison": [], "summary": "",
+                    "explanation_degraded": False,
+                    "messages": [AIMessage(content="目标核验失败，请重试。")]}
+        missing = missing_goal(slots, uncertain)
+        if missing:
+            names = {"origin": "明确的出发地点", "destination": "明确的目的地点",
+                     "departure_at": "出发日期时间", "max_detour_minutes": "最多额外绕路分钟数",
+                     "required_type": "必须的任务类型", "weight_requirement": "重量限制",
+                     "wait_requirement": "等待时间限制"}
+            text = "请确认：" + "、".join(names.get(x, x) for x in missing) + "。没有核实前不会推荐。"
+            return {"slots": slots, "goal_errors": missing, "status": "needs_clarification",
+                    "answer": text, "verified": [], "unverified": [],
+                    "comparison": [], "summary": "", "explanation_degraded": False,
+                    "messages": [AIMessage(content=text)]}
+        hard_unknown = needs_unknown_confirmation(slots)
+        if hard_unknown:
+            text = ("你的严格重量或等待要求无法用当前任务数据核实，不能声称已满足。"
+                    "请通过人工信息核验，或明确修改/撤销该限制。")
+            return {"slots": slots, "goal_errors": hard_unknown,
+                    "status": "needs_clarification", "answer": text,
+                    "verified": [], "unverified": [], "comparison": [],
+                    "summary": "", "explanation_degraded": False,
+                    "messages": [AIMessage(content=text)]}
+        # Every run launches a fresh MCP session using these validated slots.
+        # Prior recommendation cards, route estimates and comparisons are not reused.
         result = await run_agent(settings, actor, slots, state.get("messages", []),
                                  model=model, mcp_transport=mcp_transport)
         result["slots"] = slots
+        result["goal_errors"] = []
+        result["goal_version"] = state.get("goal_version", 0) + (1 if slots != old else 0)
         result["messages"] = [AIMessage(content=result["answer"])]
         return result
 
