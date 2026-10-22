@@ -295,3 +295,240 @@ def test_mcp_does_not_get_model_chosen_identity_fields(service):
     assert result["verified"] == []
     assert result["events"][0]["status"] == "failed"
     assert result["events"][0]["summary"]["result"] == "TOOL_FAILED"
+
+
+# Stage 2: actual LangGraph entry/goal patch and evidence-gated presentation.
+from langgraph.checkpoint.memory import InMemorySaver
+from langchain_core.messages import HumanMessage
+from app.agent.autonomous_route import build_autonomous_graph
+from app.agent.route_goal import GoalPatch, GoalChange, apply_goal_patch
+
+
+def change(field, value, evidence, ambiguous=False):
+    return GoalChange(field=field, value=str(value), evidence=evidence,
+                      ambiguous=ambiguous)
+
+
+class GoalUnderstandingStub:
+    """Controlled structured model output: deliberately different Chinese surface forms.
+
+    Graph must consume these verified changes, not the old _rule_extract() regex.
+    """
+    async def extract(self, message, previous, now):
+        changes = []
+        if "从图书馆去南门" in message:
+            changes.extend([change("origin", "图书馆", "从图书馆"),
+                            change("destination", "南门", "去南门")])
+        if "我在图书馆" in message:
+            changes.append(change("origin", "图书馆", "在图书馆"))
+            changes.append(change("destination", "南门", "去南门"))
+        if "最多绕路10分钟" in message:
+            changes.append(change("max_detour_minutes", "10", "最多绕路10分钟"))
+        if "绕路别超过十分钟" in message:
+            changes.append(change("max_detour_minutes", "10", "绕路别超过十分钟"))
+        if "终点改成东门" in message:
+            changes.append(change("destination", "东门", "终点改成东门"))
+        if "放宽到20分钟" in message:
+            changes.append(change("max_detour_minutes", "20", "放宽到20分钟"))
+        if "明天下午五点出发" in message:
+            when = (now + timedelta(days=1)).replace(hour=17, minute=0, second=0, microsecond=0)
+            changes.append(change("departure_at", when.isoformat(), "明天下午五点出发"))
+        if "十分钟后出发" in message:
+            when = now + timedelta(minutes=10)
+            changes.append(change("departure_at", when.isoformat(), "十分钟后出发"))
+        if "只接校内代办" in message:
+            changes.append(change("required_type", "校内代办", "只接校内代办"))
+        if "优先校内代办" in message:
+            changes.append(change("preferred_type", "校内代办", "优先校内代办"))
+        if "我的宿舍" in message:
+            changes.append(change("destination", "我的宿舍", "我的宿舍", ambiguous=True))
+        if "只能拿轻的" in message:
+            changes.append(change("weight_requirement", "只能拿轻的", "只能拿轻的"))
+        return GoalPatch(changes=changes)
+
+
+def graph_step(graph, thread, message):
+    async def invoke():
+        config = {"configurable": {"thread_id": thread}, "recursion_limit": 8}
+        state = await graph.ainvoke({"messages": [HumanMessage(content=message)]}, config=config)
+        if "__interrupt__" in state:
+            snap = await graph.aget_state(config)
+            return snap.values
+        return state
+    return asyncio.run(invoke())
+
+
+@pytest.mark.parametrize("utterance", [
+    "从图书馆去南门，最多绕路10分钟。",
+    "我在图书馆，准备去南门，绕路别超过十分钟。",
+])
+def test_chinese_paraphrases_go_through_graph_plan(service, utterance):
+    graph = build_autonomous_graph(InMemorySaver(), service, actor(service, 11, 1),
+                                   model=ReasoningModelStub(),
+                                   goal_interpreter=GoalUnderstandingStub())
+    result = graph_step(graph, "phrase-" + str(uuid.uuid4()), utterance)
+    assert result["status"] == "needs_clarification"
+    assert result["slots"]["origin"] == "图书馆"
+    assert result["slots"]["destination"] == "南门"
+    assert result["slots"]["max_detour_minutes"] == 10
+    assert "departure_at" not in result["slots"]
+
+
+def test_time_semantics_and_no_accidental_detour_limit(service):
+    graph = build_autonomous_graph(InMemorySaver(), service, actor(service, 11, 1),
+                                   model=ReasoningModelStub(),
+                                   goal_interpreter=GoalUnderstandingStub())
+    result = graph_step(graph, "time", "十分钟后出发")
+    assert result["status"] == "needs_clarification"
+    assert result["slots"]["departure_at"]
+    assert "max_detour_minutes" not in result["slots"]
+
+
+def test_multiturn_merges_only_explicit_changes(service):
+    graph = build_autonomous_graph(InMemorySaver(), service, actor(service, 11, 1),
+                                   model=ReasoningModelStub(),
+                                   goal_interpreter=GoalUnderstandingStub())
+    first = graph_step(graph, "multi", "从图书馆去南门，最多绕路10分钟。")
+    second = graph_step(graph, "multi", "终点改成东门")
+    third = graph_step(graph, "multi", "放宽到20分钟")
+    assert first["slots"]["max_detour_minutes"] == 10
+    assert second["slots"]["origin"] == "图书馆"
+    assert second["slots"]["destination"] == "东门"
+    assert second["slots"]["max_detour_minutes"] == 10
+    assert third["slots"]["max_detour_minutes"] == 20
+    assert third["slots"]["destination"] == "东门"
+
+
+def test_hard_type_and_soft_type_are_separate():
+    hard, errors = apply_goal_patch(
+        "只接校内代办", {}, GoalPatch(changes=[
+            change("required_type", "校内代办", "只接校内代办")]))
+    soft, errors2 = apply_goal_patch(
+        "优先校内代办", {}, GoalPatch(changes=[
+            change("preferred_type", "校内代办", "优先校内代办")]))
+    assert not errors and not errors2
+    assert hard["required_type"] == "校内代办" and "preferred_type" not in hard
+    assert soft["preferred_type"] == "校内代办" and "required_type" not in soft
+
+
+def test_ambiguous_place_and_unverifiable_hard_weight_block_graph(service):
+    graph = build_autonomous_graph(InMemorySaver(), service, actor(service, 11, 1),
+                                   model=ReasoningModelStub(),
+                                   goal_interpreter=GoalUnderstandingStub())
+    first = graph_step(graph, "ambig", "从图书馆去南门，最多绕路10分钟。")
+    ambiguous = graph_step(graph, "ambig", "终点改成我的宿舍")
+    assert ambiguous["status"] == "needs_clarification"
+    assert ambiguous["slots"]["destination"] == "南门"
+    assert not ambiguous["verified"]
+    # Time is confirmed, but a hard weight requirement remains unknown.
+    graph_step(graph, "weight", "从图书馆去南门，最多绕路10分钟。")
+    graph_step(graph, "weight", "明天下午五点出发")
+    weighted = graph_step(graph, "weight", "只能拿轻的")
+    assert weighted["status"] == "needs_clarification"
+    assert not weighted["verified"]
+    assert "重量" in weighted["answer"]
+
+
+def test_model_omits_explicit_limit_then_graph_asks_instead_of_relaxing(service):
+    class OmittedGoal:
+        async def extract(self, message, previous, now):
+            return GoalPatch(changes=[])
+    graph = build_autonomous_graph(InMemorySaver(), service, actor(service, 11, 1),
+                                   model=ReasoningModelStub(), goal_interpreter=OmittedGoal())
+    result = graph_step(graph, "omitted", "从图书馆去南门，最多绕路10分钟。")
+    assert result["status"] == "needs_clarification"
+    assert not result["verified"]
+    assert "max_detour_minutes" in result["goal_errors"]
+
+
+def test_model_invented_departure_or_relaxation_rejected():
+    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    slots, errors = apply_goal_patch(
+        "十分钟后出发", {"max_detour_minutes": 10}, GoalPatch(changes=[
+            change("max_detour_minutes", "20", "十分钟后出发")]), now=now)
+    assert slots["max_detour_minutes"] == 10
+    assert "max_detour_minutes" in errors
+    bad, errors2 = apply_goal_patch(
+        "我住我的宿舍", {"origin": "图书馆"},
+        GoalPatch(changes=[change("destination", "我的宿舍", "我的宿舍")]), now=now)
+    assert "destination" not in bad and "destination" in errors2
+
+
+def test_program_rejects_hard_type_without_relying_on_prompt(service):
+    async def execute():
+        cap = (datetime.now(ZoneInfo("Asia/Shanghai")) + timedelta(hours=1)).isoformat()
+        return await run_agent(service, actor(service, 11, 1),
+            {"origin": "图书馆", "destination": "南门", "departure_at": cap,
+             "max_detour_minutes": 10, "required_type": "校内代办"},
+            [], model=ReasoningModelStub())
+    result = asyncio.run(execute())
+    assert not result["verified"]
+    assert any(e["summary"].get("result") == "TASK_TYPE_CONSTRAINT"
+               for e in result["events"])
+
+
+class ComparisonModel(ReasoningModelStub):
+    """Model chooses 7 over 8 after reading both real tool result streams."""
+    def __init__(self, mode="valid"):
+        super().__init__()
+        self.case = mode
+        self.visited = []
+
+    async def ainvoke(self, messages):
+        last = messages[-1]
+        if not isinstance(last, ToolMessage):
+            return self.call("search_tasks", {})
+        data = json.loads(last.content)
+        self.trace.append((last.name, data))
+        if "error" in data:
+            return AIMessage(content="比较未验证，不能推荐。")
+        name = last.name
+        if name == "search_tasks":
+            return self.call("get_task_detail", {"task_id": 7})
+        if name == "get_task_detail" and data["taskId"] == 7:
+            return self.call("check_accept_eligibility", {"task_id": 7})
+        if name == "check_accept_eligibility" and data["taskId"] == 7:
+            return self.call("estimate_task_detour", {"task_id": 7})
+        if name == "estimate_task_detour" and data["taskId"] == 7:
+            return self.call("get_task_detail", {"task_id": 8})
+        if name == "get_task_detail" and data["taskId"] == 8:
+            return self.call("check_accept_eligibility", {"task_id": 8})
+        if name == "check_accept_eligibility" and data["taskId"] == 8:
+            return self.call("estimate_task_detour", {"task_id": 8})
+        if name == "estimate_task_detour" and data["taskId"] == 8:
+            reason = ("额外绕路4.7分钟，服务报酬8元，满足10分钟上限，重量仍未知。")
+            if self.case == "fake_reward":
+                reason = "额外绕路4.7分钟，服务报酬99元，重量未知。"
+            excluded = [{"task_id": 8, "reason": "虽然服务报酬13元，但预计绕路17.3分钟，超过10分钟上限。",
+                         "evidence": ["serviceFee", "estimatedDetourMinutes"]}]
+            if self.case == "fake_exclusion":
+                excluded[0]["task_id"] = 999
+            summary = ("优先任务7：绕路4.7分钟且报酬8元；"
+                       "任务8报酬13元更高，但绕路17.3分钟，不符合10分钟上限。")
+            return self.call("present_candidates", {
+                "task_ids": [7],
+                "recommendations": [{"task_id": 7, "reason": reason,
+                                      "evidence": ["estimatedDetourMinutes", "serviceFee"]}],
+                "excluded": excluded, "summary": summary,
+            })
+        return AIMessage(content="证据不够")
+
+
+@pytest.mark.parametrize("case,accepted", [
+    ("valid", True), ("fake_reward", False), ("fake_exclusion", False)])
+def test_comparison_explanations_are_evidence_validated(service, case, accepted):
+    MAP_MODE["mode"] = "two"
+    result = run(service, actor(service, 11, 1), ComparisonModel(case))
+    if accepted:
+        assert result["status"] == "choose_task", result
+        assert result["explanation_degraded"] is False
+        assert result["verified"][0]["taskId"] == 7
+        assert "4.7分钟" in result["summary"]
+        assert "13元" in result["comparison"][1]["reason"]
+        assert result["comparison"][1]["kind"] == "excluded"
+        assert result["comparison"][0]["evidence"][0]["tool"] == "estimate_task_detour"
+        assert result["verified"][0]["serviceFee"] == 8.0
+    else:
+        assert not result["verified"]
+        assert any(e["tool"] == "present_candidates" and e["status"] == "failed"
+                   for e in result["events"])
