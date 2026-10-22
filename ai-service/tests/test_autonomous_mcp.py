@@ -250,10 +250,12 @@ def test_place_ambiguity_requires_clarification(service):
 def test_route_network_absence_does_not_invent_minutes(service):
     MAP_MODE["mode"] = "unverified"
     result = run(service, actor(service, 11, 1), ReasoningModelStub())
-    assert result["status"] == "choose_task"
+    assert result["status"] == "needs_clarification"
     assert result["verified"] == []
-    assert result["unverified"][0]["estimatedDetourMinutes"] is None
-    assert result["unverified"][0]["routeVerified"] is False
+    assert result["unverified"] == []
+    assert any(e["tool"] == "present_candidates" and e["status"] == "failed"
+               and e["summary"]["result"] == "ROUTE_UNVERIFIED_FOR_LIMIT"
+               for e in result["events"])
 
 
 @pytest.mark.parametrize("mode,expected", [("failure", "BACKEND_UNAVAILABLE"),
