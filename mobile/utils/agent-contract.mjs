@@ -4,7 +4,7 @@
  */
 const resultStatuses = new Set([
   'needs_clarification', 'lookup_unavailable', 'choose_mode', 'choose_task',
-  'invalid_choice', 'no_candidates', 'ready_for_java_preview',
+  'invalid_choice', 'no_candidates', 'budget_exhausted', 'ready_for_java_preview',
   'ready_for_java_accept',
 ])
 export const MODES = Object.freeze({ delegation: 'delegation', route: 'route' })
@@ -40,7 +40,7 @@ export function isVerifiedMatch(card) {
   return Boolean(card && card.routeVerified === true
     && typeof card.taskId === 'number'
     && Number.isFinite(card.estimatedDetourMinutes)
-    && Number.isFinite(card.score))
+    && card.estimatedDetourMinutes >= 0)
 }
 
 export function receiptIsSuccessful(receipt) {
