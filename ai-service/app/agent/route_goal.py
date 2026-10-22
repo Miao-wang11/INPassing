@@ -27,7 +27,7 @@ HARD_WAIT = re.compile(r"(?:不排队|不能等|等待.{0,5}(?:不超过|最多|
 class GoalChange(BaseModel):
     field: Literal["origin", "destination", "departure_at", "max_detour_minutes",
                    "required_type", "preferred_type", "weight_requirement",
-                   "wait_requirement", "soft_preferences"]
+                   "wait_requirement", "soft_preferences", "delivery_deadline"]
     value: str = Field(max_length=150)
     evidence: str = Field(max_length=160)
     ambiguous: bool = False
@@ -45,7 +45,10 @@ field,value,evidence,ambiguous；evidence 必须是本轮用户原文中的连�
 可用字段：origin 出发点；destination 终点；departure_at 出发时间（Asia/Shanghai ISO8601含时区）；
 max_detour_minutes 最大额外绕行分钟整数字符串；required_type 必须任务类型；
 preferred_type 仅偏好类型；weight_requirement 对重量的要求原文；
-wait_requirement 排队/等待要求原文；soft_preferences 报酬等软偏好原文。
+wait_requirement 排队/等待要求原文；soft_preferences 报酬等软偏好原文；
+delivery_deadline 最晚送达时限（非出发时间，保留原文）。
+若用户明确撤销某个既有要求，在该字段的 value 使用 __CLEAR__，evidence 引用本轮的撤销原话。
+除此之外任何字段不允许清除旧要求。
 “只接校内代办”=>required_type=校内代办；“优先校内代办”=>preferred_type=校内代办。
 “十分钟后出发”=>departure_at，而绝不是 max_detour_minutes。
 “最晚送达”是交付截止时间，不是出发时间；不可放到departure_at。
@@ -83,7 +86,10 @@ def _minutes_from_evidence(evidence: str):
 
 def _departure_ok(value: str, evidence: str, now: datetime) -> bool:
     try:
-        at = datetime.fromisoformat(value).astimezone(ZONE)
+        parsed = datetime.fromisoformat(value)
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            return False
+        at = parsed.astimezone(ZONE)
         if not now < at <= now + timedelta(days=8):
             return False
         if not ("出发" in evidence or "动身" in evidence or
@@ -131,6 +137,17 @@ def apply_goal_patch(message: str, previous: dict, patch: GoalPatch, *,
             uncertain.append(key)
             continue
         candidate = None
+        if raw == "__CLEAR__" and re.search(r"取消|不再限制|不再要求|撤销|不要求", quote):
+            if key in slots and ((key == "weight_requirement" and re.search(r"重量|轻|重", quote))
+                                 or (key == "wait_requirement" and re.search(r"排队|等候|等待", quote))
+                                 or (key == "preferred_type" and re.search(r"优先|偏好", quote))
+                                 or (key == "required_type" and re.search(r"任务类型|只接", quote))
+                                 or (key == "soft_preferences" and re.search(r"偏好|优先", quote))):
+                slots.pop(key, None)
+                accepted.add(key)
+                continue
+            uncertain.append(key)
+            continue
         if key in ("origin", "destination"):
             if raw in quote and len(raw) <= 80 and not RELATIVE.search(raw):
                 candidate = raw
@@ -144,7 +161,7 @@ def apply_goal_patch(message: str, previous: dict, patch: GoalPatch, *,
         elif key in ("required_type", "preferred_type"):
             want_hard = key == "required_type"
             if raw in TYPES and raw in quote and (
-                bool(TYPE_SIGNAL.search(quote)) if want_hard else
+                bool(re.search(r"只接|仅接|仅限|必须|只要", quote)) if want_hard else
                 bool(re.search(r"优先|最好|偏好|尽量", quote))):
                 candidate = raw
         elif key == "weight_requirement" and re.search(r"重量|轻|重|公斤|千克", quote):
@@ -152,6 +169,8 @@ def apply_goal_patch(message: str, previous: dict, patch: GoalPatch, *,
         elif key == "wait_requirement" and re.search(r"等待|排队|等候", quote):
             candidate = quote[:100]
         elif key == "soft_preferences" and re.search(r"最好|优先|希望|尽量|偏好", quote):
+            candidate = quote[:100]
+        elif key == "delivery_deadline" and re.search(r"最晚|之前.{0,10}(?:送|到)|送达", quote):
             candidate = quote[:100]
         if candidate is None:
             uncertain.append(key)
@@ -165,6 +184,12 @@ def apply_goal_patch(message: str, previous: dict, patch: GoalPatch, *,
         uncertain.append("max_detour_minutes")
     if TYPE_SIGNAL.search(message) and any(t in message for t in TYPES) and "required_type" not in accepted:
         uncertain.append("required_type")
+    if re.search(r"我在|从.+?(?:去|到)|起点|出发地", message) and "origin" not in accepted:
+        uncertain.append("origin")
+    if re.search(r"准备去|前往|目的地|终点|去.+?(?:门|楼|馆|宿舍)", message) and "destination" not in accepted:
+        uncertain.append("destination")
+    if re.search(r"最晚.{0,20}(?:送|到)|送达截止", message) and "delivery_deadline" not in accepted:
+        uncertain.append("delivery_deadline")
     if HARD_WEIGHT.search(message) and "weight_requirement" not in accepted:
         uncertain.append("weight_requirement")
     if HARD_WAIT.search(message) and "wait_requirement" not in accepted:
@@ -181,7 +206,10 @@ def missing_goal(slots: dict, uncertain: list[str]) -> list[str]:
 
 
 def needs_unknown_confirmation(slots: dict) -> list[str]:
-    # There is no trustworthy load weight or handoff queue duration in TaskCard.
-    return [field for field, signal in (("weight_requirement", HARD_WEIGHT),
-                                       ("wait_requirement", HARD_WAIT))
-            if slots.get(field) and signal.search(slots[field])]
+    # TaskCard contains no trustworthy weight, queue, handoff or delivery ETA.
+    result = [field for field, signal in (("weight_requirement", HARD_WEIGHT),
+                                         ("wait_requirement", HARD_WAIT))
+              if slots.get(field) and signal.search(slots[field])]
+    if slots.get("delivery_deadline"):
+        result.append("delivery_deadline")
+    return result
