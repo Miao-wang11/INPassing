@@ -126,7 +126,7 @@ def apply_goal_patch(message: str, previous: dict, patch: GoalPatch, *,
     now = now.astimezone(ZONE)
     parsed = GoalPatch.model_validate(patch)
     slots = dict(previous)
-    uncertain = list(parsed.ambiguities)
+    uncertain = [name for name in parsed.ambiguities if name in FIELDS]
     accepted = set()
     for change in parsed.changes:
         key, raw, quote = change.field, change.value.strip(), change.evidence.strip()
@@ -180,6 +180,8 @@ def apply_goal_patch(message: str, previous: dict, patch: GoalPatch, *,
 
     # Signal coverage prevents a model from silently dropping a plainly expressed
     # hard condition. Existing confirmed values are never relaxed by omission.
+    if re.search(r"别太远|不要太远|稍微近点|远一点也行", message):
+        uncertain.append("max_detour_minutes")
     if LIMIT_SIGNAL.search(message) and "max_detour_minutes" not in accepted:
         uncertain.append("max_detour_minutes")
     if TYPE_SIGNAL.search(message) and any(t in message for t in TYPES) and "required_type" not in accepted:
