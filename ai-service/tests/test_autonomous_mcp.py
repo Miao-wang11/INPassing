@@ -624,3 +624,18 @@ def test_explicit_user_removal_of_unverifiable_weight_requirement():
         "取消重量限制", first, GoalPatch(changes=[
             change("weight_requirement", "__CLEAR__", "取消重量限制")]))
     assert not errors2 and "weight_requirement" not in cleared
+
+
+def test_new_user_message_after_pending_choice_invalidates_old_recommendations(service):
+    graph = build_autonomous_graph(InMemorySaver(), service, actor(service, 11, 1),
+                                   model=ReasoningModelStub(),
+                                   goal_interpreter=GoalUnderstandingStub())
+    first = graph_step(graph, "choice-update",
+                       "从图书馆去南门，最多绕路10分钟，明天下午五点出发")
+    assert first["status"] == "choose_task" and first["verified"]
+    changed = graph_step(graph, "choice-update", "终点改成东门")
+    assert changed["slots"]["destination"] == "东门"
+    assert changed["slots"]["max_detour_minutes"] == 10
+    assert changed.get("status") != "ready_for_java_accept"
+    assert not changed.get("verified")
+    assert any(x["tool"] == "estimate_task_detour" for x in changed.get("events", []))
