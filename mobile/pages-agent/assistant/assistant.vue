@@ -15,7 +15,15 @@
       <view v-for="(msg, i) in messages" :key="i" :class="['bubble', msg.role]">
         <text selectable>{{ msg.text }}</text>
       </view>
-      <view v-if="busy" class="bubble agent"><text>正在核实校区任务和业务条件…</text></view>
+      <view v-if="busy" class="bubble agent"><text>请求处理中；完成后展示真实工具调用记录。</text></view>
+      <view v-if="mode === 'route' && events.length" class="result-card">
+        <text class="card-title">Agent 实际工具执行记录</text>
+        <view v-for="(evt, i) in events" :key="'tool'+i" class="tool-event">
+          <text class="name">{{ evt.tool }} · {{ evt.status === 'succeeded' ? '完成' : evt.status === 'failed' ? '失败' : '已达到上限' }}</text>
+          <text class="meta">{{ evt.elapsedMs }} ms（开始时累计耗时）· {{ formatToolEvent(evt) }}</text>
+        </view>
+        <text class="hint">只展示脱敏参数及真实执行结果，不显示模型内部推理。</text>
+      </view>
 
       <view v-if="mode === 'delegation'" class="guided">
         <text class="label">本人收货地址（仅提交地址簿 ID；姓名、电话不会发给模型）</text>
@@ -82,7 +90,7 @@
         <view v-for="item in verified" :key="'v'+item.taskId" class="task-line">
           <text class="name">{{ item.type }} · {{ item.publicDesc }}</text>
           <text class="detail">{{ item.pickupArea }} → {{ item.deliveryArea }}</text>
-          <text class="meta">估算绕路 {{ item.estimatedDetourMinutes }} 分钟 · 匹配分 {{ item.score }}</text>
+          <text class="meta">估算绕路 {{ item.estimatedDetourMinutes }} 分钟 · Agent 综合推荐</text>
           <text class="meta">服务报酬 ¥{{ moneyText(item.serviceFee) }}（不含商品预算）</text>
           <text class="hint">{{ item.reason }}</text>
           <view class="primary-btn" @click="chooseTask(item)">选择此任务</view>
@@ -143,6 +151,7 @@ const offers = ref([])
 const verified = ref([])
 const unverified = ref([])
 const limitations = ref([])
+const events = ref([])
 const draftPrefill = ref(null)
 const prepared = ref(null) // token stays in memory only; never in localStorage or Python
 const selectedTask = ref(null)
@@ -180,6 +189,7 @@ function resetFlow() {
   verified.value = []
   unverified.value = []
   limitations.value = []
+  events.value = []
   draftPrefill.value = null
   prepared.value = null
   selectedTask.value = null
@@ -215,6 +225,12 @@ async function sendText(text) {
   }
 }
 function send() { return sendText(message.value) }
+function formatToolEvent(evt) {
+  const safe = evt && evt.summary && typeof evt.summary === 'object' ? evt.summary : {}
+  return Object.entries(safe).filter(([key]) =>
+    ['page', 'size', 'task_id', 'result'].includes(key))
+    .map(([key, value]) => key + ': ' + String(value).slice(0, 60)).join(' · ')
+}
 function appendAgent(text) { messages.value.push({ role: 'agent', text: text || '请继续补充信息。' }) }
 function applyReply(data) {
   session.value = data.session_id
@@ -223,6 +239,7 @@ function applyReply(data) {
   verified.value = Array.isArray(data.verified) ? data.verified : []
   unverified.value = Array.isArray(data.unverified) ? data.unverified : []
   limitations.value = Array.isArray(data.limitations) ? data.limitations : []
+  events.value = Array.isArray(data.events) ? data.events : []
   draftPrefill.value = data.status === 'ready_for_java_preview' ? data.preview_input : null
   selectedTask.value = data.status === 'ready_for_java_accept' ? data.selected : null
   appendAgent(data.answer || (data.status === 'choose_mode' ? '请选择服务或公开任务' : '请从列表选择任务'))
@@ -397,6 +414,7 @@ async function acceptTask() {
 .secondary-btn { background:var(--surface); color:var(--primary); border:1px solid var(--outline-light) }
 .disabled { opacity:.5; pointer-events:none }
 .offer-line, .task-line { display:flex; flex-direction:column; gap:12rpx; border-top:1px solid var(--outline-light); padding:20rpx 0 }
+.tool-event { display:flex; flex-direction:column; gap:5rpx; padding:12rpx 0; border-bottom:1px solid var(--outline-light) }
 .limits { display:flex; flex-direction:column; gap:8rpx; padding:10rpx }
 .end-space { height:70rpx }
 .composer { border-top:1px solid var(--outline-light); background:var(--surface-raised); padding:16rpx 24rpx 28rpx; display:flex; align-items:center; gap:12rpx }
