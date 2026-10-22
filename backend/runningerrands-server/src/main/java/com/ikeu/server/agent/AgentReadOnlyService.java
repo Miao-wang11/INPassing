@@ -83,8 +83,18 @@ public class AgentReadOnlyService {
 
     @Transactional(readOnly = true)
     public CandidateBatch matchingCandidates(Long uid, int page, int size) {
+        return matchingCandidates(uid, page, size, null, null, null, null);
+    }
+
+    /** SQL-pushed filters, bounded pages and per-candidate eligibility; no whole-table load. */
+    @Transactional(readOnly = true)
+    public CandidateBatch matchingCandidates(Long uid, int page, int size,
+                                             String keyword, String type, String pickup, String delivery) {
         Long campusId = campuses.requireUserCampus(uid);
-        PageResult<TaskListVO> raw = tasks.searchTasks(null, null, null, null, page, size);
+        PageResult<TaskListVO> raw = (pickup != null && !pickup.isBlank())
+                || (delivery != null && !delivery.isBlank())
+                ? tasks.filterTasks(type, pickup, delivery, null, null, null, page, size)
+                : tasks.searchTasks(keyword, type, null, null, page, size);
         List<TaskCard> result = new java.util.ArrayList<>();
         for (TaskListVO t : raw.getRecords()) {
             if (!campusId.equals(t.getCampusId()))
