@@ -36,7 +36,7 @@ def build_server(settings, actor, *, origin="", destination=""):
         (keyword or pickup/delivery, optionally type) and pages; do not claim global optimality.
         Returned cards may omit weight and handoff waiting time: these are UNKNOWN.
         """
-        if (type(page) is not int or not 1 <= page <= 5 or type(size) is not int
+        if (not isinstance(page, int) or isinstance(page, bool) or not 1 <= page <= 5 or not isinstance(size, int) or isinstance(size, bool)
                 or not 1 <= size <= 20 or len(keyword) > 80 or len(type) > 32
                 or len(pickup) > 80 or len(delivery) > 80):
             raise ValueError("invalid search parameters")
