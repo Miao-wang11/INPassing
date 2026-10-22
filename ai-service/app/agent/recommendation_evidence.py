@@ -101,6 +101,30 @@ def _confirm_expiry(tid, slots, looked_up):
         raise ValueError("INVALID_EXPIRY") from None
 
 
+def _check_comparatives(summary, recommended, excluded, looked_up, estimates):
+    """Guard directional claims, not merely the numeric tokens used to state them."""
+    if len(recommended) != 1:
+        return
+    selected = recommended[0]
+    baseline = _facts(selected, looked_up, estimates)
+    for tid in excluded:
+        facts = _facts(tid, looked_up, estimates)
+        for segment in re.split(r"[。；;]", summary):
+            if not re.search(r"任务\\s*[#＃:]?\\s*" + str(tid) + r"(?!\\d)", segment):
+                continue
+            if "更高" in segment and (
+                facts["serviceFee"] is None or baseline["serviceFee"] is None or
+                facts["serviceFee"] <= baseline["serviceFee"]
+            ):
+                raise ValueError("FALSE_COMPARATIVE")
+            if "更短" in segment and (
+                facts["estimatedDetourMinutes"] is None or
+                baseline["estimatedDetourMinutes"] is None or
+                facts["estimatedDetourMinutes"] >= baseline["estimatedDetourMinutes"]
+            ):
+                raise ValueError("FALSE_COMPARATIVE")
+
+
 def validate_recommendation(payload, *, seen, looked_up, eligible, estimates, slots):
     ids = payload.get("task_ids", [])
     if not ids or len(ids) != len(set(ids)) or len(ids) > 3:
@@ -164,6 +188,8 @@ def validate_recommendation(payload, *, seen, looked_up, eligible, estimates, sl
     # No unsupported claims of optimality based on partial pagination.
     if re.search(r"最合适|最好的任务|唯一的任务", summary):
         raise ValueError("GLOBAL_OPTIMALITY_NOT_PROVEN")
+    _check_comparatives(summary, ids, [x["task_id"] for x in excluded],
+                        looked_up, estimates)
     return {"verified": [c for c in chosen if c["routeVerified"]],
             "unverified": [c for c in chosen if not c["routeVerified"]],
             "comparison": explanations, "summary": summary,
