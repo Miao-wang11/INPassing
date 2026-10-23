@@ -639,3 +639,53 @@ def test_new_user_message_after_pending_choice_invalidates_old_recommendations(s
     assert changed.get("status") != "ready_for_java_accept"
     assert not changed.get("verified")
     assert any(x["tool"] == "estimate_task_detour" for x in changed.get("events", []))
+
+
+def test_comparison_cannot_swap_task_fees_or_detours_between_evidence_refs():
+    """A globally valid number is not evidence for a different task."""
+    from app.agent.recommendation_evidence import validate_recommendation
+    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    task8 = {**TASK, "taskId": 8, "tip": "12.00", "deliveryFee": "1.00"}
+    base = {
+        "task_ids": [7],
+        "recommendations": [{"task_id": 7, "reason": "任务7绕路4.7分钟，服务报酬8元",
+                             "evidence": ["serviceFee", "estimatedDetourMinutes"]}],
+        "excluded": [{"task_id": 8, "reason": "任务8服务报酬13元，额外绕路17.3分钟",
+                      "evidence": ["serviceFee", "estimatedDetourMinutes"]}],
+        "summary": "任务7绕路4.7分钟，报酬8元；任务8绕路17.3分钟，报酬13元。",
+    }
+    kwargs = dict(seen={7, 8}, looked_up={7: TASK, 8: task8},
+                  eligible={7: True, 8: True},
+                  estimates={7: {"routeVerified": True, "estimatedDetourMinutes": 4.7},
+                             8: {"routeVerified": True, "estimatedDetourMinutes": 17.3}},
+                  slots={"origin": "图书馆", "destination": "南门",
+                         "departure_at": (now + timedelta(hours=1)).isoformat(),
+                         "max_detour_minutes": 10})
+    assert validate_recommendation(base, **kwargs)["explanation_degraded"] is False
+    swapped = {**base, "summary": "任务7绕路17.3分钟，报酬13元；任务8绕路4.7分钟，报酬8元。"}
+    with pytest.raises(ValueError, match="CROSS_TASK"):
+        validate_recommendation(swapped, **kwargs)
+    swapped_reason = {**base, "excluded": [{**base["excluded"][0],
+                                          "reason": "任务8绕路4.7分钟，报酬8元"}]}
+    with pytest.raises(ValueError, match="CROSS_TASK"):
+        validate_recommendation(swapped_reason, **kwargs)
+
+
+def test_comparison_cannot_discuss_unestimated_or_ineligible_task():
+    from app.agent.recommendation_evidence import validate_recommendation
+    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    task8 = {**TASK, "taskId": 8}
+    kwargs = dict(seen={7, 8}, looked_up={7: TASK, 8: task8},
+                  eligible={7: True, 8: False},
+                  estimates={7: {"routeVerified": True, "estimatedDetourMinutes": 4.7},
+                             8: {"routeVerified": True, "estimatedDetourMinutes": 17.3}},
+                  slots={"departure_at": (now + timedelta(hours=1)).isoformat(),
+                         "max_detour_minutes": 10})
+    data = {"task_ids": [7],
+            "recommendations": [{"task_id": 7, "reason": "任务7绕路4.7分钟",
+                                 "evidence": ["estimatedDetourMinutes"]}],
+            "excluded": [{"task_id": 8, "reason": "任务8绕路17.3分钟",
+                          "evidence": ["estimatedDetourMinutes"]}],
+            "summary": "任务7绕路4.7分钟，任务8绕路17.3分钟"}
+    with pytest.raises(ValueError, match="UNVERIFIED_EXCLUSION"):
+        validate_recommendation(data, **kwargs)
