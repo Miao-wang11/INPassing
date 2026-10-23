@@ -20,7 +20,7 @@ TOOL = {
     "estimatedDetourMinutes": "estimate_task_detour",
 }
 BAD = re.compile(r"(?:全库|全量任务|全局最优|全校最优|保证准时|一定准时|无需排队|肯定不排队|门禁畅通|重量很轻|已核实重量|绝对能接|公里|公斤|千克|\bkg\b)", re.I)
-NUM = r"(\d+(?:\.\d+)?)"
+NUM = r"([零〇一二三四五六七八九十百千万两\d]+(?:[.点][零〇一二三四五六七八九两\d]+)?)"
 FEE = re.compile(r"(?:¥|￥)\s*" + NUM + r"|"+NUM+r"\s*元")
 MIN = re.compile(NUM + r"\s*分钟")
 TASK = re.compile(r"任务\s*[#＃:]?\s*(\d{1,18})")
@@ -32,6 +32,28 @@ def _money(value):
 
 def _same(a, b):
     return abs(float(a) - float(b)) < 0.011
+
+
+def _fact_number(token):
+    """Use the same numeric interpretation for local and global evidence checks."""
+    if re.fullmatch(r"\d+(?:\.\d+)?", token):
+        return float(token)
+    token = token.replace("两", "二").replace("〇", "零")
+    integer, dot, fraction = token.partition("点")
+    n = _number(integer)
+    if n is None:
+        raise ValueError("UNSUPPORTED_CHINESE_NUMERAL")
+    if dot:
+        digits = {c: str(i) for i, c in enumerate("零一二三四五六七八九")}
+        if not fraction or any(c not in digits and not c.isdigit() for c in fraction):
+            raise ValueError("UNSUPPORTED_CHINESE_NUMERAL")
+        n = float(str(n) + "." + "".join(digits.get(c, c) for c in fraction))
+    return n
+
+
+def _numeric_facts(text):
+    return ([_fact_number(m.group(1) or m.group(2)) for m in FEE.finditer(text)],
+            [_fact_number(m.group(1)) for m in MIN.finditer(text)])
 
 
 def _facts(tid, looked_up, estimated):
@@ -56,12 +78,18 @@ def _sanitize_text(text, refs, seen_ids, slots, *, allow_user_limit=True):
     # A model cannot use task A's fee or detour as "evidence" for task B.
     # Match facts to the task mentioned in the SAME clause, not the union of
     # numeric values across all compared tasks.
-    for clause in re.split(r"[。；;，,\n]", text):
-        ids = set(map(int, TASK.findall(clause)))
+    current_ids = set()
+    for clause in re.split(r"([。；;，,\n])", text):
+        if clause in ("。", "；", ";", "\n"):
+            current_ids = set()
+            continue
+        explicit_ids = set(map(int, TASK.findall(clause)))
+        if explicit_ids:
+            current_ids = explicit_ids
+        ids = current_ids
         if not ids:
             continue
-        amounts = [float(m.group(1) or m.group(2)) for m in FEE.finditer(clause)]
-        durations = [float(m.group(1)) for m in MIN.finditer(clause)]
+        amounts, durations = _numeric_facts(clause)
         if not amounts and not durations:
             continue
         if len(ids) != 1:
@@ -82,19 +110,13 @@ def _sanitize_text(text, refs, seen_ids, slots, *, allow_user_limit=True):
              for v in [ref["value"]] if v is not None]
     if allow_user_limit and slots.get("max_detour_minutes") is not None:
         times.append(slots["max_detour_minutes"])
-    for match in FEE.finditer(text):
-        amount = float(match.group(1) or match.group(2))
+    amounts, durations = _numeric_facts(text)
+    for amount in amounts:
         if not any(_same(amount, v) for v in fees):
             raise ValueError("FABRICATED_REWARD")
-    for match in MIN.finditer(text):
-        mins = float(match.group(1))
+    for mins in durations:
         if not any(_same(mins, v) for v in times):
             raise ValueError("FABRICATED_DETOUR")
-    for match in re.finditer(r"([零一二三四五六七八九十两]{1,4})\s*(分钟|元)", text):
-        n = _number(match.group(1).replace("两", "二"))
-        values = times if match.group(2) == "分钟" else fees
-        if n is None or not any(_same(n, v) for v in values):
-            raise ValueError("UNSUPPORTED_CHINESE_NUMERAL")
     if re.search(r"轻便|很轻|不会排队|不用等|保证|最快|肯定|门禁正常", text):
         raise ValueError("UNVERIFIED_UNKNOWN_CLAIM")
     return text.strip()

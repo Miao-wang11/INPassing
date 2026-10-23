@@ -518,6 +518,14 @@ class ComparisonModel(ReasoningModelStub):
             if self.case == "wrong_comparison":
                 summary = ("优先任务7：绕路4.7分钟且报酬8元；"
                            "任务8报酬13元更短，但绕路17.3分钟。")
+            if self.case == "valid_chinese":
+                summary = "任务7绕路四点七分钟，报酬八元；任务8绕路十七点三分钟，报酬十三元。"
+            if self.case == "swapped_chinese_fee":
+                summary = "任务7报酬十三元，任务8报酬八元。"
+            if self.case == "swapped_chinese_detour":
+                summary = "任务7绕路十七点三分钟，任务8绕路四点七分钟。"
+            if self.case == "swapped_continued_clause":
+                summary = "任务7绕路四点七分钟，报酬十三元；任务8绕路十七点三分钟，报酬八元。"
             return self.call("present_candidates", {
                 "task_ids": [7],
                 "recommendations": [{"task_id": 7, "reason": reason,
@@ -529,7 +537,9 @@ class ComparisonModel(ReasoningModelStub):
 
 @pytest.mark.parametrize("case,accepted", [
     ("valid", True), ("fake_reward", False), ("fake_detour", False),
-    ("fake_exclusion", False), ("unfetched", False), ("wrong_comparison", False)])
+    ("fake_exclusion", False), ("unfetched", False), ("wrong_comparison", False),
+    ("valid_chinese", True), ("swapped_chinese_fee", False),
+    ("swapped_chinese_detour", False), ("swapped_continued_clause", False)])
 def test_comparison_explanations_are_evidence_validated(service, case, accepted):
     MAP_MODE["mode"] = "two"
     result = run(service, actor(service, 11, 1), ComparisonModel(case))
@@ -537,7 +547,7 @@ def test_comparison_explanations_are_evidence_validated(service, case, accepted)
         assert result["status"] == "choose_task", result
         assert result["explanation_degraded"] is False
         assert result["verified"][0]["taskId"] == 7
-        assert "4.7分钟" in result["summary"]
+        assert ("四点七分钟" if case == "valid_chinese" else "4.7分钟") in result["summary"]
         assert "13元" in result["comparison"][1]["reason"]
         assert result["comparison"][1]["kind"] == "excluded"
         assert result["comparison"][0]["evidence"][0]["tool"] == "estimate_task_detour"
@@ -689,3 +699,91 @@ def test_comparison_cannot_discuss_unestimated_or_ineligible_task():
             "summary": "任务7绕路4.7分钟，任务8绕路17.3分钟"}
     with pytest.raises(ValueError, match="UNVERIFIED_EXCLUSION"):
         validate_recommendation(data, **kwargs)
+
+
+@pytest.mark.parametrize("field,quote", [
+    ("weight_requirement", "只能拿轻的，最好报酬高一点"),
+    ("weight_requirement", "最好报酬高一点，只能拿轻的"),
+    ("weight_requirement", "希望必须是轻的"),
+    ("weight_requirement", "希望重量不超过两公斤"),
+    ("weight_requirement", "最好轻一点，" + "服务报酬方面希望能够高一些；" * 7 + "只能拿轻的"),
+    ("wait_requirement", "不能等，优先报酬高的"),
+    ("wait_requirement", "最好报酬高一点，等待最多五分钟"),
+    ("wait_requirement", "希望等待不超过五分钟"),
+])
+def test_soft_preference_cannot_cancel_hard_unknown_requirement(service, field, quote):
+    from app.agent.route_goal import needs_unknown_confirmation
+    from app.agent.recommendation_evidence import validate_recommendation
+
+    class BroadEvidence(GoalUnderstandingStub):
+        async def extract(self, message, previous, now):
+            if message == quote:
+                return GoalPatch(changes=[change(field, quote, quote)])
+            return await super().extract(message, previous, now)
+
+    # The final validator independently enforces the same rule.
+    assert needs_unknown_confirmation({field: quote}) == [field]
+    with pytest.raises(ValueError, match="UNVERIFIABLE_HARD_REQUIREMENT"):
+        validate_recommendation({"task_ids": [7]}, seen=set(), looked_up={},
+            eligible={}, estimates={}, slots={field: quote})
+    model = ReasoningModelStub()
+    graph = build_autonomous_graph(InMemorySaver(), service, actor(service, 11, 1),
+                                   model=model, goal_interpreter=BroadEvidence())
+    graph_step(graph, "mixed", "从图书馆去南门，最多绕路10分钟。")
+    # Confirm the time and hard requirement in a single turn, before MCP runs.
+    config = {"configurable": {"thread_id": "mixed"}}
+    departure = (datetime.now(ZoneInfo("Asia/Shanghai")) + timedelta(hours=1)).isoformat()
+    asyncio.run(graph.aupdate_state(config, {"slots": {
+        "origin": "图书馆", "destination": "南门", "max_detour_minutes": 10,
+        "departure_at": departure}}))
+    result = graph_step(graph, "mixed", quote)
+    assert result["status"] == "needs_clarification"
+    assert field in result["goal_errors"]
+    assert result["slots"][field] == quote
+    assert not result["verified"] and not model.trace and model.schemas is None
+
+
+@pytest.mark.parametrize("field,quote", [
+    ("weight_requirement", "最好轻一点"),
+    ("weight_requirement", "最好轻一点，报酬必须高"),
+    ("wait_requirement", "希望等待少一点"),
+    ("wait_requirement", "尽量不排队"),
+])
+def test_actual_soft_requirements_remain_preferences(field, quote):
+    from app.agent.route_goal import needs_unknown_confirmation
+    assert needs_unknown_confirmation({field: quote}) == []
+
+
+@pytest.mark.parametrize("quote,hour,minute", [
+    ("明天下午五点四十五分出发", 17, 45),
+    ("明天下午5点45分出发", 17, 45),
+    ("明天下午五点半出发", 17, 30),
+    ("明天下午五点一刻出发", 17, 15),
+    ("明天下午五点三刻出发", 17, 45),
+    ("明天17:45出发", 17, 45),
+    ("明天17：45出发", 17, 45),
+    ("明天下午五点出发", 17, 0),
+    ("明天上午九点零五分动身", 9, 5),
+    ("明天凌晨十二点半出发", 0, 30),
+])
+def test_departure_requires_exact_user_minutes(quote, hour, minute):
+    now = datetime(2026, 10, 23, 10, tzinfo=ZoneInfo("Asia/Shanghai"))
+    when = (now + timedelta(days=1)).replace(hour=hour, minute=minute)
+    valid, errors = apply_goal_patch(quote, {}, GoalPatch(changes=[
+        change("departure_at", when.isoformat(), quote)]), now=now)
+    assert not errors and valid["departure_at"] == when.isoformat()
+    for wrong in (when + timedelta(minutes=1), when.replace(minute=(minute + 30) % 60),
+                  when + timedelta(seconds=1), when + timedelta(days=1)):
+        previous = {"departure_at": when.isoformat()}
+        slots, errors = apply_goal_patch(quote, previous, GoalPatch(changes=[
+            change("departure_at", wrong.isoformat(), quote)]), now=now)
+        assert "departure_at" in errors and slots == previous
+
+
+@pytest.mark.parametrize("quote", ["明天有空就出发", "明天下午五点六十分出发"])
+def test_unparsed_departure_does_not_authorize_model_time(quote):
+    now = datetime(2026, 10, 23, 10, tzinfo=ZoneInfo("Asia/Shanghai"))
+    when = (now + timedelta(days=1)).replace(hour=17)
+    slots, errors = apply_goal_patch(quote, {}, GoalPatch(changes=[
+        change("departure_at", when.isoformat(), quote)]), now=now)
+    assert "departure_at" in errors and "departure_at" not in slots

@@ -22,6 +22,8 @@ LIMIT_SIGNAL = re.compile(r"(?:绕路|绕行|额外.*?(?:时间|分钟)|放宽.{
 TYPE_SIGNAL = re.compile(r"(?:只接|仅接|仅限|必须|只要|不要|不接)")
 HARD_WEIGHT = re.compile(r"(?:只.{0,8}(?:轻|重量|公斤|千克)|不能.{0,8}重|重量.{0,8}(?:不超过|以内))")
 HARD_WAIT = re.compile(r"(?:不排队|不能等|(?:排队|等待|等候).{0,8}(?:不超过|不能超过|别超过|最多|以内)|最多.{0,2}等)")
+SOFT_REQUIREMENT = re.compile(r"最好|尽量|优先|希望|偏好")
+STRICT_REQUIREMENT = re.compile(r"只能|必须|一定要|不得|不许|不能|不超过|别超过|至多|最多|以内|只(?:接|拿|提|搬|要)")
 
 
 class GoalChange(BaseModel):
@@ -97,23 +99,38 @@ def _departure_ok(value: str, evidence: str, now: datetime) -> bool:
             return False
         if not re.search(r"出发|动身|启程|离开", evidence):
             return False
-        if ("后出发" in evidence or "后动身" in evidence) and "分钟" in evidence:
-            n = _minutes_from_evidence(evidence)
+        relative = re.search(r"([零一二三四五六七八九十百两\d]{1,8})\s*分钟后\s*(?:再)?(?:出发|动身|启程|离开)", evidence)
+        if relative:
+            n = _number(relative.group(1).replace("两", "二"))
             return n is not None and abs((at - now).total_seconds() / 60 - n) <= 2
         day = 2 if "后天" in evidence else 1 if "明天" in evidence else 0
-        if "今天" in evidence or day:
-            if at.date() != (now + timedelta(days=day)).date():
-                return False
-        m = re.search(r"(\d{1,2}|[一二三四五六七八九十]{1,3})\s*点", evidence)
-        if m:
-            hour = _number(m.group(1))
-            if hour is None:
-                return False
-            if ("下午" in evidence or "晚上" in evidence) and hour < 12:
-                hour += 12
-            if at.hour != hour:
-                return False
-        return True
+        if at.date() != (now + timedelta(days=day)).date():
+            return False
+        # Verify the full user clock, including Chinese minutes. An unparsed or
+        # ambiguous clock must not authorize an arbitrary model timestamp.
+        clocks = list(re.finditer(
+            r"(?<![\d一二三四五六七八九十])"
+            r"(\d{1,2}|[一二三四五六七八九十]{1,3})\s*"
+            r"(?:点(?:(半|一刻|三刻)|\s*([零一二三四五六七八九十两\d]{1,3})\s*分?)?"
+            r"|[:：]([0-5]\d))(?![\d一二三四五六七八九十])", evidence))
+        if len(clocks) != 1:
+            return False
+        m = clocks[0]
+        hour = _number(m.group(1))
+        minute_token = (m.group(3) or m.group(4) or "0").replace("两", "二")
+        minute = ({"半": 30, "一刻": 15, "三刻": 45}[m.group(2)] if m.group(2)
+                  else _number(minute_token.lstrip("零") or "0"))
+        if hour is None or minute is None or not 0 <= hour <= 23 or not 0 <= minute <= 59:
+            return False
+        if re.search(r"凌晨|早上|上午", evidence) and hour > 12:
+            return False
+        if re.search(r"下午|晚上", evidence) and hour < 12:
+            hour += 12
+        elif "中午" in evidence and hour < 11:
+            hour += 12
+        elif re.search(r"凌晨|早上|上午", evidence) and hour == 12:
+            hour = 0
+        return (at.hour, at.minute, at.second, at.microsecond) == (hour, minute, 0, 0)
     except (ValueError, TypeError, OverflowError):
         return False
 
@@ -166,9 +183,9 @@ def apply_goal_patch(message: str, previous: dict, patch: GoalPatch, *,
                 bool(re.search(r"优先|最好|偏好|尽量", quote))):
                 candidate = raw
         elif key == "weight_requirement" and re.search(r"重量|轻|重|公斤|千克", quote):
-            candidate = quote[:100]
-        elif key == "wait_requirement" and re.search(r"等待|排队|等候", quote):
-            candidate = quote[:100]
+            candidate = quote
+        elif key == "wait_requirement" and re.search(r"等待|排队|等候|不能等|最多.{0,2}等", quote):
+            candidate = quote
         elif key == "soft_preferences" and re.search(r"最好|优先|希望|尽量|偏好", quote):
             candidate = quote[:100]
         elif key == "delivery_deadline" and re.search(r"最晚|之前.{0,10}(?:送|到)|送达", quote):
@@ -212,7 +229,16 @@ def missing_goal(slots: dict, uncertain: list[str]) -> list[str]:
 def needs_unknown_confirmation(slots: dict) -> list[str]:
     # TaskCard contains no trustworthy weight, queue, handoff or delivery ETA.
     result = [field for field in ("weight_requirement", "wait_requirement")
-              if slots.get(field) and not re.search(r"最好|尽量|优先|希望|偏好", slots[field])]
+              if slots.get(field) and _requirement_is_hard(field, slots[field])]
     if slots.get("delivery_deadline"):
         result.append("delivery_deadline")
     return result
+
+
+def _requirement_is_hard(field: str, evidence: str) -> bool:
+    topic = r"重量|轻|重|公斤|千克" if field == "weight_requirement" else r"等待|排队|等候|等"
+    clauses = [c for c in re.split(r"[，,。；;！!？?\n]", evidence) if re.search(topic, c)]
+    # Soft language about another preference cannot relax this requirement.
+    # Even within one clause an explicit restriction takes precedence.
+    return not clauses or any(STRICT_REQUIREMENT.search(c) or not SOFT_REQUIREMENT.search(c)
+                              for c in clauses)
