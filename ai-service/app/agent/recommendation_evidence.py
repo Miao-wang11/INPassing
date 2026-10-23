@@ -53,6 +53,29 @@ def _sanitize_text(text, refs, seen_ids, slots, *, allow_user_limit=True):
         raise ValueError("UNSUPPORTED_EXPLANATION")
     if set(map(int, TASK.findall(text))) - seen_ids:
         raise ValueError("UNSEEN_COMPARISON_TASK")
+    # A model cannot use task A's fee or detour as "evidence" for task B.
+    # Match facts to the task mentioned in the SAME clause, not the union of
+    # numeric values across all compared tasks.
+    for clause in re.split(r"[。；;，,\n]", text):
+        ids = set(map(int, TASK.findall(clause)))
+        if not ids:
+            continue
+        amounts = [float(m.group(1) or m.group(2)) for m in FEE.finditer(clause)]
+        durations = [float(m.group(1)) for m in MIN.finditer(clause)]
+        if not amounts and not durations:
+            continue
+        if len(ids) != 1:
+            raise ValueError("AMBIGUOUS_CROSS_TASK_FACT")
+        tid = next(iter(ids))
+        own = [r for r in refs if r["taskId"] == tid]
+        valid_fee = [r["value"] for r in own if r["field"] == "serviceFee"]
+        valid_minutes = [r["value"] for r in own if r["field"] == "estimatedDetourMinutes"]
+        if allow_user_limit and slots.get("max_detour_minutes") is not None:
+            valid_minutes.append(slots["max_detour_minutes"])
+        if any(not any(_same(x, y) for y in valid_fee) for x in amounts):
+            raise ValueError("CROSS_TASK_REWARD")
+        if any(not any(_same(x, y) for y in valid_minutes) for x in durations):
+            raise ValueError("CROSS_TASK_DETOUR")
     fees = [v for ref in refs if ref["field"] == "serviceFee"
             for v in [ref["value"]] if v is not None]
     times = [v for ref in refs if ref["field"] == "estimatedDetourMinutes"
@@ -168,7 +191,7 @@ def validate_recommendation(payload, *, seen, looked_up, eligible, estimates, sl
         raise ValueError("EXPLANATION_ID_ORDER")
     refs_all = []
     explanations = []
-    known_ids = set(looked_up)
+    known_ids = set(looked_up) & set(estimates)
     for obj, card in zip(proposals, chosen):
         tid = obj["task_id"]
         refs = _references(tid, obj.get("evidence"), looked_up, estimates)
@@ -184,7 +207,7 @@ def validate_recommendation(payload, *, seen, looked_up, eligible, estimates, sl
         raise ValueError("INVALID_EXCLUSIONS")
     for obj in excluded:
         tid = obj.get("task_id")
-        if tid not in seen or tid in ids or tid not in looked_up or tid not in estimates:
+        if tid not in seen or tid in ids or tid not in looked_up or tid not in estimates or eligible.get(tid) is not True:
             raise ValueError("UNVERIFIED_EXCLUSION")
         refs = _references(tid, obj.get("evidence"), looked_up, estimates)
         _confirm_expiry(tid, slots, looked_up)
