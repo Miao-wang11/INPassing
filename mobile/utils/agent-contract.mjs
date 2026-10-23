@@ -54,3 +54,28 @@ export function formatCandidateDescription(card) {
   }
   return '路线未核实，无法判断是否符合绕路上限；请自行确认'
 }
+
+/** Only typed, bounded evidence references are displayed; never render tool HTML. */
+const evidenceFields = Object.freeze({
+  serviceFee: '服务报酬（小费+配送费）',
+  estimatedDetourMinutes: '额外绕行分钟',
+  type: '任务类型',
+  pickupArea: '取件位置',
+  deliveryArea: '送达位置',
+  expireTime: '接单截止时间',
+})
+export function evidenceLabel(field) { return evidenceFields[field] || '其他证据' }
+
+export function safeRouteComparison(value) {
+  if (!Array.isArray(value)) return []
+  return value.slice(0, 6).filter(item =>
+    item && Number.isInteger(item.taskId) && item.taskId > 0
+    && ['recommended', 'excluded'].includes(item.kind)
+    && typeof item.reason === 'string' && item.reason.length <= 300
+    && Array.isArray(item.evidence) && item.evidence.length <= 6
+    && item.evidence.every(ref => ref && ref.taskId === item.taskId
+      && ['get_task_detail', 'estimate_task_detour'].includes(ref.tool)
+      && Object.prototype.hasOwnProperty.call(evidenceFields, ref.field)
+      && (typeof ref.value === 'string' || typeof ref.value === 'number'))
+  )
+}

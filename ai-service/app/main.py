@@ -165,6 +165,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "unverified": pause.get("unverified", []),
                     "events": saved.get("events", []),
                     "limitations": saved.get("limitations", []),
+                    "slots": saved.get("slots", {}),
+                    "comparison": saved.get("comparison", []),
+                    "summary": saved.get("summary", ""),
+                    "explanation_degraded": saved.get("explanation_degraded", False),
                     "requires_final_java_accept": True,
                 }
             return {"session_id": session_id, "status": state.get("status"),
@@ -175,6 +179,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "selected": state.get("selected"),
                     "limitations": state.get("limitations", []),
                     "events": state.get("events", []),
+                    "comparison": state.get("comparison", []),
+                    "summary": state.get("summary", ""),
+                    "explanation_degraded": state.get("explanation_degraded", False),
+                    "goal_errors": state.get("goal_errors", []),
                     "model_degraded": state.get("model_degraded", False),
                     "requires_final_java_accept": state.get("status") == "ready_for_java_accept"}
         except HTTPException:

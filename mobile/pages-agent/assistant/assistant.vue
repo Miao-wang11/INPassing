@@ -85,6 +85,26 @@
         <text class="hint">请求中断时先查询同一草稿状态，不创建新的交易。</text>
       </view>
 
+      <view v-if="mode === 'route' && (routeSummary || routeComparison.length)" class="result-card">
+        <text class="card-title">本轮推荐与比较依据</text>
+        <text v-if="routeSummary" class="detail" selectable>{{ routeSummary }}</text>
+        <text v-if="explanationDegraded" class="warning">说明已降级：未获得可校验的模型比较，只展示工具核实结果。</text>
+        <view v-for="entry in routeComparison" :key="entry.kind + entry.taskId" class="task-line">
+          <text class="name">{{ entry.kind === 'excluded' ? '比较后未推荐' : '本轮推荐' }} · 任务 #{{ entry.taskId }}</text>
+          <text class="detail" selectable>{{ entry.reason }}</text>
+          <text v-for="(ref, j) in entry.evidence" :key="j" class="hint">
+            证据：{{ ref.tool }} · {{ evidenceLabel(ref.field) }}：{{ ref.value }}
+          </text>
+        </view>
+        <text class="hint">未核实：重量、排队和交接等待时间。比较只覆盖本轮实际查看的任务。</text>
+      </view>
+      <view v-if="mode === 'route' && confirmedRoute.origin" class="result-card">
+        <text class="card-title">本轮已校验的目标</text>
+        <text class="detail">{{ confirmedRoute.origin }} → {{ confirmedRoute.destination || '目的地待确认' }}</text>
+        <text class="meta">出发时间：{{ confirmedRoute.departure_at || '待确认' }} · 绕路上限：{{ confirmedRoute.max_detour_minutes ?? '待确认' }} 分钟</text>
+        <text v-if="confirmedRoute.required_type" class="hint">硬性任务类型：{{ confirmedRoute.required_type }}</text>
+        <text v-if="confirmedRoute.preferred_type" class="hint">优先类型：{{ confirmedRoute.preferred_type }}</text>
+      </view>
       <view v-if="mode === 'route' && (verified.length || unverified.length)" class="result-card">
         <text class="card-title">顺路候选 · 仅为预检结果</text>
         <view v-for="item in verified" :key="'v'+item.taskId" class="task-line">
@@ -92,7 +112,11 @@
           <text class="detail">{{ item.pickupArea }} → {{ item.deliveryArea }}</text>
           <text class="meta">估算绕路 {{ item.estimatedDetourMinutes }} 分钟 · Agent 综合推荐</text>
           <text class="meta">服务报酬 ¥{{ moneyText(item.serviceFee) }}（不含商品预算）</text>
-          <text class="hint">{{ item.reason }}</text>
+          <text class="detail">{{ item.reason }}</text>
+          <text v-for="(ref, j) in item.evidence || []" :key="j" class="hint">
+            {{ evidenceLabel(ref.field) }}：{{ ref.value }}（{{ ref.tool }}）
+          </text>
+          <text class="warning">未知：{{ (item.unknowns || ['重量', '等待时间']).join('、') }}</text>
           <view class="primary-btn" @click="chooseTask(item)">选择此任务</view>
         </view>
         <view v-for="item in unverified" :key="'u'+item.taskId" class="task-line">
@@ -136,6 +160,7 @@ import { promptPayPassword } from '@/utils/pay-password'
 import {
   validateAgentReply, moneyText, validFeeString, quoteIsReady,
   receiptIsSuccessful, formatCandidateDescription, isVerifiedMatch,
+  evidenceLabel, safeRouteComparison,
 } from '@/utils/agent-contract.mjs'
 import { showToast } from '@/utils/toast'
 
@@ -152,6 +177,10 @@ const verified = ref([])
 const unverified = ref([])
 const limitations = ref([])
 const events = ref([])
+const routeSummary = ref('')
+const routeComparison = ref([])
+const explanationDegraded = ref(false)
+const confirmedRoute = ref({})
 const draftPrefill = ref(null)
 const prepared = ref(null) // token stays in memory only; never in localStorage or Python
 const selectedTask = ref(null)
@@ -190,6 +219,10 @@ function resetFlow() {
   unverified.value = []
   limitations.value = []
   events.value = []
+  routeSummary.value = ''
+  routeComparison.value = []
+  explanationDegraded.value = false
+  confirmedRoute.value = {}
   draftPrefill.value = null
   prepared.value = null
   selectedTask.value = null
@@ -240,6 +273,12 @@ function applyReply(data) {
   unverified.value = Array.isArray(data.unverified) ? data.unverified : []
   limitations.value = Array.isArray(data.limitations) ? data.limitations : []
   events.value = Array.isArray(data.events) ? data.events : []
+  if (mode.value === 'route') {
+    routeSummary.value = typeof data.summary === 'string' ? data.summary : ''
+    routeComparison.value = safeRouteComparison(data.comparison)
+    explanationDegraded.value = data.explanation_degraded === true
+    confirmedRoute.value = data.slots && typeof data.slots === 'object' ? data.slots : {}
+  }
   draftPrefill.value = data.status === 'ready_for_java_preview' ? data.preview_input : null
   selectedTask.value = data.status === 'ready_for_java_accept' ? data.selected : null
   appendAgent(data.answer || (data.status === 'choose_mode' ? '请选择服务或公开任务' : '请从列表选择任务'))
